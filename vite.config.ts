@@ -15,7 +15,7 @@ export default defineConfig({
         description: 'Partager les dépenses au prorata des revenus',
         lang: 'fr-CA',
         theme_color: '#0f766e',
-        background_color: '#f6f7f9',
+        background_color: '#f7f9fb',
         display: 'standalone',
         start_url: '/',
         icons: [
@@ -25,12 +25,12 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // Tesseract downloads its wasm and language data at runtime; cache them after first scan.
+        // Tesseract data and Google Fonts load at runtime; cache them for offline use.
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/(cdn\.jsdelivr\.net|tessdata\.projectnaptha\.com)\//,
+            urlPattern: /^https:\/\/(cdn\.jsdelivr\.net|tessdata\.projectnaptha\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)\//,
             handler: 'CacheFirst',
-            options: { cacheName: 'ocr-assets', expiration: { maxEntries: 20 } },
+            options: { cacheName: 'cdn-assets', expiration: { maxEntries: 40 } },
           },
         ],
       },

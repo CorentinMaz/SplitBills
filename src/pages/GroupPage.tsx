@@ -1,10 +1,15 @@
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { useUser } from '../auth'
+import Avatar, { AvatarStack } from '../components/Avatar'
+import ExpenseRow from '../components/ExpenseRow'
 import Header from '../components/Header'
+import Icon from '../components/Icon'
 import { addPayment, deleteEntry, useEntries } from '../data/entries'
 import { useGroup } from '../data/groups'
 import { computeBalances, settleUp } from '../lib/balance'
+import { shareInvite } from '../lib/invite'
 import { formatMoney, today } from '../lib/money'
+import { nameIn } from '../lib/names'
 
 export default function GroupPage() {
   const { groupId = '' } = useParams()
@@ -12,106 +17,101 @@ export default function GroupPage() {
   const group = useGroup(groupId)
   const entries = useEntries(groupId)
 
-  if (group === null) return <Navigate to="/" replace />
-  if (!group || !entries) return <div className="center muted">Chargement…</div>
+  if (group === null) return <Navigate to="/groups" replace />
+  if (!group || !entries) return <div className="loading">Chargement…</div>
 
-  const name = (uid: string) => (uid === user.uid ? 'Toi' : (group.members[uid]?.name ?? 'Ancien membre'))
+  const me = user.uid
+  const name = nameIn(group, me)
   const money = (n: number) => formatMoney(n, group.currency)
   const balances = computeBalances(group.memberIds, entries)
   const transfers = settleUp(balances)
-  const totalSpent = entries.reduce((sum, e) => (e.kind === 'expense' ? sum + e.amount : sum), 0)
+  const mine = balances[me] ?? 0
+  const myTransfers = transfers.filter((t) => t.from === me || t.to === me)
+  const others = transfers.filter((t) => t.from !== me && t.to !== me)
+
+  async function settleAll() {
+    if (!confirm(`Enregistrer ${transfers.length} remboursement${transfers.length > 1 ? 's' : ''}?`)) return
+    await Promise.all(
+      transfers.map((t) => addPayment(groupId, { amount: t.amount, paidBy: t.from, to: t.to, date: today(), createdBy: me })),
+    )
+  }
 
   return (
-    <main className="page has-fab">
+    <main className="page with-nav">
       <Header
-        title={group.name}
-        back="/"
-        action={
-          <Link to="settings" className="icon-btn" aria-label="Réglages">
-            ⚙
-          </Link>
+        back="/groups"
+        actions={
+          <>
+            <button className="round-btn tonal" aria-label="Inviter" onClick={() => shareInvite(group).then((copied) => copied && alert('Lien copié!'))}>
+              <Icon name="person_add" />
+            </button>
+            <Link to="settings" className="round-btn" aria-label="Réglages">
+              <Icon name="settings" />
+            </Link>
+          </>
         }
       />
 
-      <section className="card">
-        <div className="split">
-          <span className="muted">Total dépensé</span>
-          <strong>{money(totalSpent)}</strong>
-        </div>
-        <div className="shares">
-          {group.memberIds.map((uid) => (
-            <span key={uid} className="chip">
-              {name(uid)} · {group.members[uid]?.share ?? 0} %
-            </span>
-          ))}
-        </div>
+      <section className="group-hero">
+        <span className="pill-tag">
+          {group.memberIds.map((id) => `${group.members[id]?.share ?? 0} %`).join(' / ')}
+        </span>
+        <h1 className="display">{group.name}</h1>
+        <AvatarStack people={group.memberIds.map((id) => ({ id, name: group.members[id]?.name }))} max={4} size={38} />
       </section>
 
       <section className="card stack">
-        <h2>Soldes</h2>
-        {transfers.length === 0 ? (
-          <p className="muted">Tout le monde est quitte 🎉</p>
-        ) : (
-          transfers.map((t) => (
+        <span className="muted">Ton solde total</span>
+        <span className={`big-balance ${mine > 0 ? 'pos' : mine < 0 ? 'neg' : ''}`}>
+          {mine > 0 ? '+ ' : mine < 0 ? '− ' : ''}
+          {money(Math.abs(mine))}
+        </span>
+        {transfers.length > 0 && <hr />}
+        {[...myTransfers, ...others].map((t) => {
+          const other = t.from === me ? t.to : t.from
+          const text =
+            t.to === me
+              ? `${name(t.from)} te doit`
+              : t.from === me
+                ? `Tu dois à ${name(t.to)}`
+                : `${name(t.from)} doit à ${name(t.to)}`
+          return (
             <div key={`${t.from}-${t.to}`} className="split">
-              <span>
-                <b>{name(t.from)}</b> {t.from === user.uid ? 'dois' : 'doit'} <b>{money(t.amount)}</b> à {name(t.to)}
+              <span className="row-left">
+                <Avatar id={other} name={group.members[other]?.name} size={26} />
+                {text}
               </span>
-              <button
-                className="btn small"
-                onClick={() =>
-                  confirm(`Enregistrer un remboursement de ${money(t.amount)}?`) &&
-                  addPayment(groupId, { amount: t.amount, paidBy: t.from, to: t.to, date: today(), createdBy: user.uid })
-                }
-              >
-                Réglé
-              </button>
+              <strong className={t.to === me ? 'pos' : t.from === me ? 'neg' : ''}>{money(t.amount)}</strong>
             </div>
-          ))
+          )
+        })}
+        {transfers.length > 0 ? (
+          <button className="btn tonal" onClick={settleAll}>
+            <Icon name="account_balance_wallet" /> Solder les dettes
+          </button>
+        ) : (
+          <p className="muted small">Tout le monde est quitte 🎉</p>
         )}
       </section>
 
-      <h2 className="section-title">Historique</h2>
-      {entries.length === 0 && <p className="muted center">Aucune dépense pour l'instant.</p>}
-      <ul className="list">
-        {entries.map((e) =>
-          e.kind === 'expense' ? (
-            <li key={e.id}>
-              <Link to={`e/${e.id}`} className="row">
-                <span className="stack-tight">
-                  <span>{e.title}</span>
-                  <small className="muted">
-                    {e.date} · payé par {name(e.paidBy)}
-                  </small>
-                </span>
-                <strong>{money(e.amount)}</strong>
-              </Link>
-            </li>
-          ) : (
-            <li key={e.id} className="row payment">
-              <span className="stack-tight">
-                <span>
-                  {name(e.paidBy)} → {name(e.to)}
-                </span>
-                <small className="muted">{e.date} · remboursement</small>
-              </span>
-              <span className="split-tight">
-                <strong>{money(e.amount)}</strong>
-                <button
-                  className="icon-btn"
-                  aria-label="Annuler le remboursement"
-                  onClick={() => confirm('Annuler ce remboursement?') && deleteEntry(groupId, e.id)}
-                >
-                  ×
-                </button>
-              </span>
-            </li>
-          ),
-        )}
+      <h2 className="headline">Dépenses</h2>
+      {entries.length === 0 && <p className="empty">Aucune dépense pour l'instant.</p>}
+      <ul className="bills">
+        {entries.map((e) => (
+          <ExpenseRow
+            key={e.id}
+            entry={e}
+            groupId={groupId}
+            me={me}
+            nameOf={name}
+            currency={group.currency}
+            onDeletePayment={() => confirm('Annuler ce remboursement?') && deleteEntry(groupId, e.id)}
+          />
+        ))}
       </ul>
 
-      <Link to="new" className="fab">
-        + Dépense
+      <Link to="new" className="fab" aria-label="Ajouter une dépense">
+        <Icon name="add" />
       </Link>
     </main>
   )

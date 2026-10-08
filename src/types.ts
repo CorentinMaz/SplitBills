@@ -17,6 +17,7 @@ export type Expense = {
   id: string
   kind: 'expense'
   title: string
+  category?: string
   amount: number
   paidBy: string
   date: string

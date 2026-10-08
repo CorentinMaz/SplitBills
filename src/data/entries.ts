@@ -2,7 +2,7 @@ import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, updateD
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { reportError } from '../lib/errors'
-import type { Entry, Expense, Payment } from '../types'
+import type { Entry, Expense, Group, Payment } from '../types'
 
 const entriesOf = (groupId: string) => collection(db, 'groups', groupId, 'expenses')
 
@@ -37,4 +37,30 @@ export function addPayment(groupId: string, data: Omit<Payment, 'id' | 'kind' | 
 
 export function deleteEntry(groupId: string, id: string) {
   return deleteDoc(doc(entriesOf(groupId), id))
+}
+
+/** Live entries for several groups at once, keyed by group id. Null until every group has loaded. */
+export function useAllEntries(groups: Group[] | null) {
+  const [byGroup, setByGroup] = useState<Record<string, Entry[]>>({})
+  const key = groups?.map((g) => g.id).join(',') ?? ''
+
+  useEffect(() => {
+    if (!key) return
+    const unsubs = key.split(',').map((groupId) =>
+      onSnapshot(
+        query(entriesOf(groupId), orderBy('date', 'desc')),
+        (snap) =>
+          setByGroup((prev) => ({ ...prev, [groupId]: snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Entry) })),
+        (e) => {
+          reportError(e)
+          setByGroup((prev) => ({ ...prev, [groupId]: [] }))
+        },
+      ),
+    )
+    return () => unsubs.forEach((u) => u())
+  }, [key])
+
+  if (!groups) return null
+  if (groups.some((g) => !byGroup[g.id])) return null
+  return Object.fromEntries(groups.map((g) => [g.id, byGroup[g.id]]))
 }

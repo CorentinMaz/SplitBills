@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useUser } from '../auth'
+import Icon from '../components/Icon'
 import { joinGroup, useGroup } from '../data/groups'
 
 export default function Join() {
@@ -23,11 +24,16 @@ export default function Join() {
   }
 
   return (
-    <main className="page narrow center stack">
-      <h1>Invitation</h1>
-      <p className="muted">On t'a invité·e à partager des dépenses dans un groupe.</p>
-      {error && <p className="error">{error}</p>}
-      <button className="btn primary" onClick={join}>
+    <main className="page auth">
+      <div className="auth-hero">
+        <span className="logo-tile">
+          <Icon name="group" fill />
+        </span>
+        <h1 className="headline">Invitation</h1>
+        <p className="muted">On t'a invité·e à partager des dépenses dans un groupe SplitBills.</p>
+      </div>
+      {error && <p className="error center">{error}</p>}
+      <button className="btn gradient big" onClick={join}>
         Rejoindre le groupe
       </button>
     </main>

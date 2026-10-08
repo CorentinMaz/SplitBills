@@ -1,9 +1,11 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useUser } from '../auth'
-import Header from '../components/Header'
+import Avatar from '../components/Avatar'
+import Icon from '../components/Icon'
 import { addExpense, deleteEntry, updateExpense, useEntries } from '../data/entries'
 import { useGroup } from '../data/groups'
+import { CATEGORIES } from '../lib/categories'
 import { round2, today } from '../lib/money'
 import { scanReceipt } from '../lib/ocr'
 import type { Expense, Group } from '../types'
@@ -13,8 +15,8 @@ export default function ExpenseForm() {
   const group = useGroup(groupId)
   const entries = useEntries(groupId)
 
-  if (group === null) return <Navigate to="/" replace />
-  if (!group || (expenseId && !entries)) return <div className="center muted">Chargement…</div>
+  if (group === null) return <Navigate to="/groups" replace />
+  if (!group || (expenseId && !entries)) return <div className="loading">Chargement…</div>
   const existing = entries?.find((e): e is Expense => e.id === expenseId && e.kind === 'expense')
   if (expenseId && !existing) return <Navigate to={`/g/${groupId}`} replace />
   return <Form key={expenseId ?? 'new'} group={group} existing={existing} />
@@ -27,6 +29,7 @@ function Form({ group, existing }: { group: Group; existing?: Expense }) {
   const defaultShares = () => Object.fromEntries(group.memberIds.map((id) => [id, group.members[id]?.share ?? 0]))
 
   const [title, setTitle] = useState(existing?.title ?? '')
+  const [category, setCategory] = useState(existing?.category ?? 'groceries')
   const [amount, setAmount] = useState(existing ? String(existing.amount) : '')
   const [date, setDate] = useState(existing?.date ?? today())
   const [paidBy, setPaidBy] = useState(existing?.paidBy ?? user.uid)
@@ -62,7 +65,7 @@ function Form({ group, existing }: { group: Group; existing?: Expense }) {
     e.preventDefault()
     if (!(value > 0)) return setError('Montant invalide.')
     if (shareTotal !== 100) return setError(`La répartition fait ${shareTotal} %, elle doit faire 100 %.`)
-    const data = { title: title.trim() || 'Dépense', amount: round2(value), date, paidBy, shares }
+    const data = { title: title.trim() || 'Dépense', category, amount: round2(value), date, paidBy, shares }
     if (existing) await updateExpense(groupId, existing.id, data)
     else await addExpense(groupId, { ...data, createdBy: user.uid })
     navigate(`/g/${groupId}`)
@@ -74,13 +77,33 @@ function Form({ group, existing }: { group: Group; existing?: Expense }) {
     navigate(`/g/${groupId}`)
   }
 
-  const name = (uid: string) => (uid === user.uid ? 'Moi' : group.members[uid]?.name)
+  const name = (uid: string) => (uid === user.uid ? 'Toi' : (group.members[uid]?.name ?? '?'))
+  const close = () => navigate(`/g/${groupId}`)
 
   return (
-    <main className="page">
-      <Header title={existing ? 'Modifier' : 'Nouvelle dépense'} back={`/g/${groupId}`} />
+    <div className="sheet-backdrop" onClick={close}>
+      <form className="sheet" onSubmit={submit} onClick={(e) => e.stopPropagation()}>
+        <span className="grabber" />
+        <div className="split">
+          <h1 className="headline">{existing ? 'Modifier la dépense' : 'Ajouter une dépense'}</h1>
+          <button type="button" className="round-btn" aria-label="Fermer" onClick={close}>
+            <Icon name="close" />
+          </button>
+        </div>
 
-      <form className="stack" onSubmit={submit}>
+        <div className="amount-field">
+          <span className="currency-sign">$</span>
+          <input
+            inputMode="decimal"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="0,00"
+            aria-label="Montant"
+            required
+          />
+          <span className="currency-code">{group.currency}</span>
+        </div>
+
         <input
           ref={fileInput}
           type="file"
@@ -92,88 +115,113 @@ function Form({ group, existing }: { group: Group; existing?: Expense }) {
             e.target.value = ''
           }}
         />
-        <button type="button" className="btn scan" disabled={!!scan} onClick={() => fileInput.current?.click()}>
-          {scan ? `Lecture du ticket… ${Math.round(scan.progress * 100)} %` : '📷 Scanner un ticket'}
+        <button type="button" className="btn tonal" disabled={!!scan} onClick={() => fileInput.current?.click()}>
+          <Icon name="photo_camera" />
+          {scan ? `Lecture du ticket… ${Math.round(scan.progress * 100)} %` : 'Scanner un ticket'}
         </button>
 
-        <div className="card stack">
-          <label>
-            Description
-            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Épicerie, loyer, resto…" />
+        <label className="field">
+          <span className="field-label">Description</span>
+          <span className="input-icon">
+            <Icon name="edit" />
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex : Épicerie, loyer, resto…" />
+          </span>
+        </label>
+
+        <div className="field">
+          <span className="field-label">Catégorie</span>
+          <div className="cat-picker">
+            {CATEGORIES.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                className={`cat ${category === c.id ? 'active' : ''}`}
+                onClick={() => setCategory(c.id)}
+              >
+                <span className={`cat-circle tint-${c.hue}`}>
+                  <Icon name={c.icon} />
+                </span>
+                <span>{c.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="two-col">
+          <label className="field">
+            <span className="field-label">Payé par</span>
+            <span className="input-icon">
+              <Avatar id={paidBy} name={group.members[paidBy]?.name} size={26} />
+              <select value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
+                {group.memberIds.map((id) => (
+                  <option key={id} value={id}>
+                    {name(id)}
+                  </option>
+                ))}
+              </select>
+            </span>
           </label>
-          <label>
-            Montant
-            <input
-              inputMode="decimal"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="0,00"
-              required
-              className="amount"
-            />
-          </label>
-          <label>
-            Date
+          <label className="field">
+            <span className="field-label">Date</span>
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
-          </label>
-          <label>
-            Payé par
-            <select value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
-              {group.memberIds.map((id) => (
-                <option key={id} value={id}>
-                  {name(id)}
-                </option>
-              ))}
-            </select>
           </label>
         </div>
 
-        <div className="card stack">
+        <div className="field">
           <div className="split">
-            <h2>Répartition</h2>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={custom}
-                onChange={(e) => {
-                  setCustom(e.target.checked)
-                  if (!e.target.checked) setShares(defaultShares())
-                }}
-              />
-              Personnaliser
-            </label>
+            <span className="field-label">Pour qui ?</span>
+            <button
+              type="button"
+              className="link-btn"
+              onClick={() => {
+                if (custom) setShares(defaultShares())
+                setCustom(!custom)
+              }}
+            >
+              {custom ? 'Par défaut' : 'Modifier'}
+            </button>
           </div>
-          {group.memberIds.map((id) => (
-            <div key={id} className="split">
-              <span>{name(id)}</span>
-              <span className="split-tight">
-                {custom ? (
-                  <input
-                    className="pct"
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={shares[id] ?? 0}
-                    onChange={(e) => setShares({ ...shares, [id]: Number(e.target.value) })}
-                  />
-                ) : (
-                  <span>{shares[id] ?? 0}</span>
-                )}
-                % {value > 0 && <span className="muted">· {((value * (shares[id] ?? 0)) / 100).toFixed(2)} $</span>}
-              </span>
-            </div>
-          ))}
+          <div className="share-list">
+            {group.memberIds.map((id) => (
+              <div key={id} className="share-row">
+                <Avatar id={id} name={group.members[id]?.name} size={34} />
+                <span className="share-name">
+                  {name(id)}
+                  {value > 0 && <small className="muted">{((value * (shares[id] ?? 0)) / 100).toFixed(2)} $</small>}
+                </span>
+                <span className="pct-box">
+                  {custom ? (
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      max={100}
+                      value={shares[id] ?? 0}
+                      onChange={(e) => setShares({ ...shares, [id]: Number(e.target.value) })}
+                    />
+                  ) : (
+                    <span>{shares[id] ?? 0}</span>
+                  )}
+                  %
+                </span>
+              </div>
+            ))}
+          </div>
           {shareTotal !== 100 && <p className="error">Total : {shareTotal} % (doit faire 100 %)</p>}
         </div>
 
         {error && <p className="error">{error}</p>}
-        <button className="btn primary">{existing ? 'Enregistrer' : 'Ajouter la dépense'}</button>
         {existing && (
-          <button type="button" className="btn danger" onClick={remove}>
-            Supprimer
+          <button type="button" className="btn ghost-danger" onClick={remove}>
+            <Icon name="delete" /> Supprimer
           </button>
         )}
+        <div className="sheet-footer">
+          <button className="btn gradient big">
+            <Icon name="check" /> {existing ? 'Enregistrer' : 'Ajouter la dépense'}
+          </button>
+        </div>
       </form>
-    </main>
+    </div>
   )
 }
