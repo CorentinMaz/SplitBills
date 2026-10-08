@@ -162,3 +162,17 @@ input.pct { width: 72px; padding: 6px 8px; text-align: right; }
   text-decoration: none;
   box-shadow: 0 6px 20px rgb(0 0 0 / 0.2);
 }
+
+.error-banner {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.9rem;
+}
+.error-banner .icon-btn { color: #fff; flex-shrink: 0; }

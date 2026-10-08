@@ -12,6 +12,7 @@ import {
 } from 'firebase/firestore'
 import { useEffect, useState } from 'react'
 import { displayName } from '../auth'
+import { reportError } from '../lib/errors'
 import { db } from '../firebase'
 import type { Group, Member } from '../types'
 
@@ -19,8 +20,13 @@ export function useGroups(uid: string) {
   const [groups, setGroups] = useState<Group[] | null>(null)
   useEffect(
     () =>
-      onSnapshot(query(collection(db, 'groups'), where('memberIds', 'array-contains', uid)), (snap) =>
-        setGroups(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Group)),
+      onSnapshot(
+        query(collection(db, 'groups'), where('memberIds', 'array-contains', uid)),
+        (snap) => setGroups(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Group)),
+        (e) => {
+          reportError(e)
+          setGroups([])
+        },
       ),
     [uid],
   )

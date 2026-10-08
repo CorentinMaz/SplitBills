@@ -1,6 +1,7 @@
 import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, updateDoc } from 'firebase/firestore'
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
+import { reportError } from '../lib/errors'
 import type { Entry, Expense, Payment } from '../types'
 
 const entriesOf = (groupId: string) => collection(db, 'groups', groupId, 'expenses')
@@ -9,8 +10,13 @@ export function useEntries(groupId: string) {
   const [entries, setEntries] = useState<Entry[] | null>(null)
   useEffect(
     () =>
-      onSnapshot(query(entriesOf(groupId), orderBy('date', 'desc')), (snap) =>
-        setEntries(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Entry)),
+      onSnapshot(
+        query(entriesOf(groupId), orderBy('date', 'desc')),
+        (snap) => setEntries(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Entry)),
+        (e) => {
+          reportError(e)
+          setEntries([])
+        },
       ),
     [groupId],
   )

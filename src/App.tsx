@@ -1,5 +1,6 @@
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import { useAuth } from './auth'
+import ErrorBanner from './components/ErrorBanner'
 import ExpenseForm from './pages/ExpenseForm'
 import GroupPage from './pages/GroupPage'
 import Groups from './pages/Groups'
@@ -17,17 +18,20 @@ function RequireAuth() {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route element={<RequireAuth />}>
-        <Route path="/" element={<Groups />} />
-        <Route path="/join/:groupId" element={<Join />} />
-        <Route path="/g/:groupId" element={<GroupPage />} />
-        <Route path="/g/:groupId/new" element={<ExpenseForm />} />
-        <Route path="/g/:groupId/e/:expenseId" element={<ExpenseForm />} />
-        <Route path="/g/:groupId/settings" element={<GroupSettings />} />
-      </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <>
+      <ErrorBanner />
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route element={<RequireAuth />}>
+          <Route path="/" element={<Groups />} />
+          <Route path="/join/:groupId" element={<Join />} />
+          <Route path="/g/:groupId" element={<GroupPage />} />
+          <Route path="/g/:groupId/new" element={<ExpenseForm />} />
+          <Route path="/g/:groupId/e/:expenseId" element={<ExpenseForm />} />
+          <Route path="/g/:groupId/settings" element={<GroupSettings />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   )
 }

@@ -5,6 +5,7 @@ import { useUser } from '../auth'
 import Header from '../components/Header'
 import { createGroup, useGroups } from '../data/groups'
 import { auth } from '../firebase'
+import { reportError } from '../lib/errors'
 
 export default function Groups() {
   const user = useUser()
@@ -14,8 +15,12 @@ export default function Groups() {
 
   async function create() {
     if (!name.trim()) return
-    const id = await createGroup(user, name.trim())
-    navigate(`/g/${id}/settings`)
+    try {
+      const id = await createGroup(user, name.trim())
+      navigate(`/g/${id}/settings`)
+    } catch (e) {
+      reportError(e)
+    }
   }
 
   return (
