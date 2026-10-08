@@ -1,0 +1,35 @@
+import { useState } from 'react'
+import { Navigate, useNavigate, useParams } from 'react-router-dom'
+import { useUser } from '../auth'
+import { joinGroup, useGroup } from '../data/groups'
+
+export default function Join() {
+  const { groupId = '' } = useParams()
+  const user = useUser()
+  const navigate = useNavigate()
+  // Non-members can't read the group, so this resolves to null until we've joined.
+  const group = useGroup(groupId)
+  const [error, setError] = useState<string | null>(null)
+
+  if (group?.memberIds.includes(user.uid)) return <Navigate to={`/g/${groupId}`} replace />
+
+  async function join() {
+    try {
+      await joinGroup(user, groupId)
+      navigate(`/g/${groupId}`, { replace: true })
+    } catch {
+      setError("Lien d'invitation invalide ou expiré.")
+    }
+  }
+
+  return (
+    <main className="page narrow center stack">
+      <h1>Invitation</h1>
+      <p className="muted">On t'a invité·e à partager des dépenses dans un groupe.</p>
+      {error && <p className="error">{error}</p>}
+      <button className="btn primary" onClick={join}>
+        Rejoindre le groupe
+      </button>
+    </main>
+  )
+}
