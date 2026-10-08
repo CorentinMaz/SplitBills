@@ -694,3 +694,100 @@ select { appearance: none; -webkit-appearance: none; }
   font-size: 1.4rem;
   cursor: pointer;
 }
+
+/* ---------- Layout pieces that only matter on wide screens ---------- */
+.nav-brand { display: none; }
+.group-layout, .group-side, .group-main { display: flex; flex-direction: column; gap: 18px; }
+
+/* ---------- Desktop: left sidebar instead of the floating pill ---------- */
+@media (min-width: 900px) {
+  .tab-content { padding-left: 248px; }
+  .page { padding-top: 32px; }
+  .page.with-nav { max-width: 1040px; padding: 32px 40px 48px; }
+
+  .bottom-nav {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    transform: none;
+    width: 248px;
+    height: auto;
+    padding: 28px 16px;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 6px;
+    border-radius: 0;
+    background: var(--card);
+    backdrop-filter: none;
+    border-right: 1px solid var(--outline);
+    box-shadow: none;
+  }
+  .nav-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 10px 24px;
+    color: var(--primary);
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .nav-logo {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    background: var(--gradient);
+    color: #fff;
+  }
+  .nav-tab, .nav-tab.active {
+    height: 48px;
+    padding: 0 16px;
+    gap: 14px;
+    border-radius: 14px;
+    color: var(--muted);
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .nav-tab span:last-child { display: inline; }
+  .nav-tab:hover { background: var(--card-low); color: var(--text); }
+  .nav-tab.active { background: var(--primary-soft); color: var(--on-primary-soft); }
+
+  /* The sidebar already shows the brand. */
+  .mobile-only { display: none; }
+  .brand-title { padding-top: 0; }
+
+  .fab { right: 40px; bottom: 40px; }
+  .page.with-nav > .btn.big { align-self: flex-start; }
+
+  .group-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; }
+  .stats { grid-template-columns: 1.4fr 1fr 1fr; grid-template-rows: auto; }
+  .stat-main { grid-row: auto; }
+
+  .group-layout { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 28px; align-items: start; }
+  .group-side { position: sticky; top: 32px; }
+
+  .bill, .group-card, .menu-row, .chip { transition: transform 0.15s, box-shadow 0.15s; }
+  a.bill:hover, .group-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgb(15 23 42 / 0.1); }
+
+  /* Expense form: centered dialog instead of a bottom sheet. */
+  .sheet-backdrop { align-items: center; padding: 40px 20px; }
+  .sheet {
+    max-width: 620px;
+    max-height: calc(100dvh - 80px);
+    overflow-y: auto;
+    padding-top: 24px;
+    border-radius: 24px;
+    animation-name: dialog-in;
+  }
+  .sheet .grabber { display: none; }
+  .cat-picker { flex-wrap: wrap; margin: 0; padding: 4px 0; }
+  .sheet-footer { padding-bottom: 24px; }
+  @keyframes dialog-in {
+    from { transform: scale(0.97); opacity: 0; }
+  }
+
+  .page.auth { padding-top: 10vh; }
+}

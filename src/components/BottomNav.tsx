@@ -16,8 +16,17 @@ export function TabLayout() {
   return (
     <>
       <ErrorBanner />
-      <Outlet />
+      <div className="tab-content">
+        <Outlet />
+      </div>
+      {/* Floating pill at the bottom on phones, left sidebar on wide screens (see index.css). */}
       <nav className="bottom-nav" aria-label="Navigation">
+        <span className="nav-brand">
+          <span className="nav-logo">
+            <Icon name="account_balance_wallet" fill />
+          </span>
+          SplitBills
+        </span>
         {TABS.map((t) => (
           <NavLink key={t.to} to={t.to} className={`nav-tab ${active === t.to ? 'active' : ''}`}>
             <Icon name={t.icon} fill={active === t.to} />

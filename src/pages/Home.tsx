@@ -39,7 +39,7 @@ export default function Home() {
 
   return (
     <main className="page with-nav">
-      <div className="brand-row">
+      <div className="brand-row mobile-only">
         <Link to="/profile">
           <Avatar id={user.uid} name={displayName(user)} size={40} />
         </Link>
