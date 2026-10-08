@@ -1,8 +1,9 @@
+import { Users } from 'lucide-react'
 import { useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
-import { useUser } from '../auth'
-import Icon from '../components/Icon'
-import { joinGroup, useGroup } from '../data/groups'
+import { useUser } from '@/auth'
+import { Button } from '@/components/ui/button'
+import { joinGroup, useGroup } from '@/data/groups'
 
 export default function Join() {
   const { groupId = '' } = useParams()
@@ -24,18 +25,18 @@ export default function Join() {
   }
 
   return (
-    <main className="page auth">
-      <div className="auth-hero">
-        <span className="logo-tile">
-          <Icon name="group" fill />
+    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 px-5 py-10 text-center">
+      <div className="flex flex-col items-center gap-2">
+        <span className="mb-3 grid size-17 place-items-center rounded-2xl bg-brand text-white shadow-lg">
+          <Users className="size-8" />
         </span>
-        <h1 className="headline">Invitation</h1>
-        <p className="muted">On t'a invité·e à partager des dépenses dans un groupe SplitBills.</p>
+        <h1 className="text-2xl font-semibold">Invitation</h1>
+        <p className="text-muted-foreground">On t'a invité·e à partager des dépenses dans un groupe SplitBills.</p>
       </div>
-      {error && <p className="error center">{error}</p>}
-      <button className="btn gradient big" onClick={join}>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      <Button className="h-14 rounded-full bg-brand text-base" onClick={join}>
         Rejoindre le groupe
-      </button>
+      </Button>
     </main>
   )
 }

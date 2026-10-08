@@ -5,11 +5,17 @@ import {
   signInWithPopup,
   updateProfile,
 } from 'firebase/auth'
-import { useState, type FormEvent } from 'react'
+import { Lock, type LucideIcon, Mail, User } from 'lucide-react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
-import { useAuth } from '../auth'
-import Icon from '../components/Icon'
-import { auth } from '../firebase'
+import { useAuth } from '@/auth'
+import { BrandMark } from '@/components/AppLayout'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Separator } from '@/components/ui/separator'
+import { auth } from '@/firebase'
 
 export default function Login() {
   const { user } = useAuth()
@@ -48,65 +54,64 @@ export default function Login() {
   }
 
   return (
-    <main className="page auth">
-      <div className="auth-hero">
-        <span className="logo-tile">
-          <Icon name="account_balance_wallet" fill />
-        </span>
-        <span className="brand big">SplitBills</span>
-        <h1 className="headline">{mode === 'login' ? 'Bon retour!' : 'Bienvenue'}</h1>
-        <p className="muted">Partagez vos dépenses au prorata de vos revenus.</p>
+    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 px-5 py-10">
+      <div className="flex flex-col items-center gap-1.5 text-center">
+        <BrandMark className="mb-3 size-17 rounded-2xl [&_svg]:size-8" />
+        <span className="text-[34px] font-bold tracking-tight text-primary">SplitBills</span>
+        <h1 className="text-2xl font-semibold">{mode === 'login' ? 'Bon retour!' : 'Bienvenue'}</h1>
+        <p className="text-muted-foreground">Partagez vos dépenses au prorata de vos revenus.</p>
       </div>
 
-      <form className="card stack" onSubmit={submit}>
-        {mode === 'signup' && (
-          <label className="field">
-            <span className="field-label small">Prénom</span>
-            <span className="input-icon outlined">
-              <Icon name="person" />
-              <input value={name} onChange={(e) => setName(e.target.value)} required autoComplete="given-name" />
-            </span>
-          </label>
-        )}
-        <label className="field">
-          <span className="field-label small">Courriel</span>
-          <span className="input-icon outlined">
-            <Icon name="mail" />
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="toi@exemple.com"
-              required
-              autoComplete="email"
-            />
-          </span>
-        </label>
-        <label className="field">
-          <span className="field-label small">Mot de passe</span>
-          <span className="input-icon outlined">
-            <Icon name="lock" />
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-            />
-          </span>
-        </label>
-        {error && <p className="error">{error}</p>}
-        <button className="btn gradient big" disabled={busy}>
-          {mode === 'login' ? 'Se connecter' : 'Créer mon compte'}
-        </button>
-      </form>
+      <Card className="border-0 shadow-soft">
+        <CardContent>
+          <form className="flex flex-col gap-4" onSubmit={submit}>
+            {mode === 'signup' && (
+              <Field id="name" label="Prénom" icon={User}>
+                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required autoComplete="given-name" className="h-12 rounded-xl pl-10" />
+              </Field>
+            )}
+            <Field id="email" label="Courriel" icon={Mail}>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="toi@exemple.com"
+                required
+                autoComplete="email"
+                className="h-12 rounded-xl pl-10"
+              />
+            </Field>
+            <Field id="password" label="Mot de passe" icon={Lock}>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                className="h-12 rounded-xl pl-10"
+              />
+            </Field>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <Button className="mt-1 h-14 rounded-full bg-brand text-base shadow-lg shadow-teal-700/30" disabled={busy}>
+              {mode === 'login' ? 'Se connecter' : 'Créer mon compte'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
 
-      <div className="divider label-caps">ou avec</div>
+      <div className="flex items-center gap-3.5 text-xs font-bold tracking-wider text-muted-foreground uppercase">
+        <Separator className="flex-1" />
+        ou avec
+        <Separator className="flex-1" />
+      </div>
 
-      <button
+      <Button
         type="button"
-        className="btn outline big"
+        variant="outline"
+        className="h-14 rounded-full text-base"
         disabled={busy}
         onClick={() => run(() => signInWithPopup(auth, new GoogleAuthProvider()))}
       >
@@ -117,15 +122,29 @@ export default function Login() {
           <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" />
         </svg>
         Google
-      </button>
+      </Button>
 
-      <p className="center muted">
+      <p className="text-center text-muted-foreground">
         {mode === 'login' ? 'Pas encore de compte?' : 'Déjà un compte?'}{' '}
-        <button className="link-btn" onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}>
+        <Button variant="link" className="h-auto p-0 font-semibold" onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}>
           {mode === 'login' ? "S'inscrire" : 'Se connecter'}
-        </button>
+        </Button>
       </p>
     </main>
+  )
+}
+
+function Field({ id, label, icon: Icon, children }: { id: string; label: string; icon: LucideIcon; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <Label htmlFor={id} className="text-muted-foreground">
+        {label}
+      </Label>
+      <div className="relative">
+        <Icon className="absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
+        {children}
+      </div>
+    </div>
   )
 }
 

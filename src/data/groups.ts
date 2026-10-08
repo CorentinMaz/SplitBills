@@ -12,7 +12,7 @@ import {
 } from 'firebase/firestore'
 import { useEffect, useState } from 'react'
 import { displayName } from '../auth'
-import { reportError } from '../lib/errors'
+import { reportError } from '@/lib/errors'
 import { db } from '../firebase'
 import type { Group, Member } from '../types'
 

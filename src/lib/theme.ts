@@ -18,7 +18,7 @@ function apply() {
   const pref = read()
   // Light unless the user picked dark in the profile; the system setting is ignored.
   const dark = pref === 'dark'
-  document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+  document.documentElement.classList.toggle('dark', dark)
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0b1117' : '#f7f9fb')
   listeners.forEach((l) => l())
 }

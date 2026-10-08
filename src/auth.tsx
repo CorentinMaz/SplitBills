@@ -2,7 +2,7 @@ import { onAuthStateChanged, type User } from 'firebase/auth'
 import { doc, setDoc } from 'firebase/firestore'
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { auth, db } from './firebase'
-import { reportError } from './lib/errors'
+import { reportError } from '@/lib/errors'
 
 type AuthState = { user: User | null; loading: boolean }
 

@@ -1,7 +1,7 @@
 import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, updateDoc } from 'firebase/firestore'
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
-import { reportError } from '../lib/errors'
+import { reportError } from '@/lib/errors'
 import type { Entry, Expense, Group, Payment } from '../types'
 
 const entriesOf = (groupId: string) => collection(db, 'groups', groupId, 'expenses')

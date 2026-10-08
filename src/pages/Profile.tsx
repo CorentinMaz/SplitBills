@@ -1,13 +1,20 @@
 import { signOut, updateProfile } from 'firebase/auth'
 import { doc, updateDoc } from 'firebase/firestore'
+import { ChevronRight, LogOut, Moon, Pencil } from 'lucide-react'
 import { useState } from 'react'
-import { displayName, useUser } from '../auth'
-import Avatar from '../components/Avatar'
-import Icon from '../components/Icon'
-import { useGroups } from '../data/groups'
-import { auth, db } from '../firebase'
-import { reportError } from '../lib/errors'
-import { setTheme, useIsDark } from '../lib/theme'
+import { displayName, useUser } from '@/auth'
+import { Page } from '@/components/Page'
+import UserAvatar from '@/components/UserAvatar'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
+import { useGroups } from '@/data/groups'
+import { auth, db } from '@/firebase'
+import { reportError } from '@/lib/errors'
+import { setTheme, useIsDark } from '@/lib/theme'
+
+const rowIcon = 'grid size-10 shrink-0 place-items-center rounded-full bg-muted'
 
 export default function Profile() {
   const user = useUser()
@@ -35,51 +42,57 @@ export default function Profile() {
   }
 
   return (
-    <main className="page with-nav">
-      <div className="profile-head">
-        <Avatar id={user.uid} name={shownName} size={96} />
+    <Page className="max-w-xl">
+      <div className="flex flex-col items-center gap-2 pt-6 text-center">
+        <UserAvatar id={user.uid} name={shownName} className="mb-2 size-24 text-3xl shadow-xl shadow-teal-700/25" />
         {editing ? (
           <form
-            className="inline-form"
+            className="flex gap-2"
             onSubmit={(e) => {
               e.preventDefault()
               saveName()
             }}
           >
-            <input autoFocus value={name} onChange={(e) => setName(e.target.value)} />
-            <button className="btn primary">OK</button>
+            <Input autoFocus value={name} onChange={(e) => setName(e.target.value)} className="h-10" />
+            <Button>OK</Button>
           </form>
         ) : (
-          <h1 className="headline">{shownName}</h1>
+          <h1 className="text-2xl font-semibold">{shownName}</h1>
         )}
-        <span className="muted">{user.email}</span>
+        <span className="text-muted-foreground">{user.email}</span>
       </div>
 
-      <section className="card menu">
-        <h2 className="title">Compte</h2>
-        <button className="menu-row" onClick={() => setEditing(true)}>
-          <span className="menu-icon">
-            <Icon name="edit" />
-          </span>
-          <span>Modifier mon nom</span>
-          <Icon name="chevron_right" />
-        </button>
-        <label className="menu-row">
-          <span className="menu-icon">
-            <Icon name="dark_mode" />
-          </span>
-          <span>Apparence sombre</span>
-          <input type="checkbox" className="switch" checked={dark} onChange={(e) => setTheme(e.target.checked ? 'dark' : 'light')} />
-        </label>
-      </section>
+      <Card className="border-0 shadow-soft">
+        <CardHeader>
+          <CardTitle className="text-lg">Compte</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-1">
+          <button className="flex items-center gap-3.5 py-2.5 text-left" onClick={() => setEditing(true)}>
+            <span className={rowIcon}>
+              <Pencil className="size-5" />
+            </span>
+            <span className="flex-1">Modifier mon nom</span>
+            <ChevronRight className="size-5 text-muted-foreground" />
+          </button>
+          <label className="flex cursor-pointer items-center gap-3.5 py-2.5">
+            <span className={rowIcon}>
+              <Moon className="size-5" />
+            </span>
+            <span className="flex-1">Apparence sombre</span>
+            <Switch checked={dark} onCheckedChange={(on) => setTheme(on ? 'dark' : 'light')} />
+          </label>
+        </CardContent>
+      </Card>
 
-      <button className="menu-row card danger-row" onClick={() => signOut(auth)}>
-        <span className="menu-icon">
-          <Icon name="logout" />
-        </span>
-        <span>Se déconnecter</span>
-        <Icon name="chevron_right" />
-      </button>
-    </main>
+      <Card className="border-0 p-0 shadow-soft">
+        <button className="flex items-center gap-3.5 px-6 py-4 text-left text-destructive" onClick={() => signOut(auth)}>
+          <span className={`${rowIcon} bg-destructive/10`}>
+            <LogOut className="size-5" />
+          </span>
+          <span className="flex-1">Se déconnecter</span>
+          <ChevronRight className="size-5" />
+        </button>
+      </Card>
+    </Page>
   )
 }
