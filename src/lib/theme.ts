@@ -3,7 +3,6 @@ import { useSyncExternalStore } from 'react'
 export type ThemePref = 'light' | 'dark' | null
 
 const KEY = 'theme'
-const media = window.matchMedia('(prefers-color-scheme: dark)')
 const listeners = new Set<() => void>()
 
 function read(): ThemePref {
@@ -17,15 +16,14 @@ function read(): ThemePref {
 
 function apply() {
   const pref = read()
-  if (pref) document.documentElement.dataset.theme = pref
-  else delete document.documentElement.dataset.theme
-  const dark = pref ? pref === 'dark' : media.matches
+  // Light unless the user picked dark in the profile; the system setting is ignored.
+  const dark = pref === 'dark'
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light'
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0b1117' : '#f7f9fb')
   listeners.forEach((l) => l())
 }
 
 apply()
-media.addEventListener('change', apply)
 
 export function setTheme(pref: ThemePref) {
   try {
@@ -40,9 +38,6 @@ export function setTheme(pref: ThemePref) {
 export function useIsDark() {
   return useSyncExternalStore(
     (l) => (listeners.add(l), () => listeners.delete(l)),
-    () => {
-      const pref = read()
-      return pref ? pref === 'dark' : media.matches
-    },
+    () => read() === 'dark',
   )
 }

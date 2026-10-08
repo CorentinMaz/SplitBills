@@ -28,29 +28,7 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Dark palette, applied by system preference unless the user forced light, or when forced dark. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --bg: #0b1117;
-    --card: #151c24;
-    --card-low: #1c2530;
-    --card-high: #26313e;
-    --text: #e6e8ea;
-    --muted: #9aa3b2;
-    --outline: #2f3a48;
-    --primary: #2dd4bf;
-    --primary-bright: #5eead4;
-    --primary-soft: #133f3b;
-    --on-primary-soft: #99f6e4;
-    --pos: #34d399;
-    --neg: #fb923c;
-    --danger: #ff8a80;
-    --danger-soft: #3b1513;
-    --nav: #1e293b;
-    --shadow: 0 8px 24px rgb(0 0 0 / 0.3);
-    color-scheme: dark;
-  }
-}
+/* Light by default. Dark only when chosen in the profile. */
 :root[data-theme='dark'] {
   --bg: #0b1117;
   --card: #151c24;
@@ -274,9 +252,6 @@ button { font: inherit; }
 .tint-gray { background: var(--card-high); color: var(--muted); }
 .tint-green { background: #d1fae5; color: #047857; }
 :root[data-theme='dark'] [class*='tint-']:not(.tint-gray) { filter: saturate(0.9) brightness(0.85); }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) [class*='tint-']:not(.tint-gray) { filter: saturate(0.9) brightness(0.85); }
-}
 
 .solid-teal { background: #0f766e; }
 .solid-violet { background: #7c3aed; }
