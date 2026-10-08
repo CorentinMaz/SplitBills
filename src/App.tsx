@@ -2,7 +2,6 @@ import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import { useAuth } from '@/auth'
 import AppLayout from '@/components/AppLayout'
 import { Loading } from '@/components/Page'
-import ExpenseForm from '@/pages/ExpenseForm'
 import GroupPage from '@/pages/GroupPage'
 import Groups from '@/pages/Groups'
 import GroupSettings from '@/pages/GroupSettings'
@@ -31,10 +30,7 @@ export default function App() {
           <Route path="/groups" element={<Groups />} />
           <Route path="/history" element={<History />} />
           <Route path="/profile" element={<Profile />} />
-          <Route path="/g/:groupId" element={<GroupPage />}>
-            <Route path="new" element={<ExpenseForm />} />
-            <Route path="e/:expenseId" element={<ExpenseForm />} />
-          </Route>
+          <Route path="/g/:groupId" element={<GroupPage />} />
           <Route path="/g/:groupId/settings" element={<GroupSettings />} />
         </Route>
       </Route>

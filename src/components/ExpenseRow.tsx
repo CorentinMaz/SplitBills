@@ -1,5 +1,5 @@
 import { Banknote } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { useOpenExpense } from '@/components/ExpenseDialog'
 import { Button } from '@/components/ui/button'
 import { categoryOf, TINTS } from '@/lib/categories'
 import { relativeDay } from '@/lib/dates'
@@ -20,6 +20,7 @@ type Props = {
 const rowClass = 'flex items-center gap-3.5 rounded-xl p-4'
 
 export default function ExpenseRow({ entry: e, groupId, me, nameOf, currency, groupName, onDeletePayment }: Props) {
+  const openExpense = useOpenExpense()
   const money = (n: number) => formatMoney(n, currency)
   const where = groupName ? `${groupName} · ` : ''
 
@@ -54,9 +55,10 @@ export default function ExpenseRow({ entry: e, groupId, me, nameOf, currency, gr
   const mine = (e.amount * (e.shares[me] ?? 0)) / total
   return (
     <li>
-      <Link
-        to={`/g/${groupId}/e/${e.id}`}
-        className={cn(rowClass, 'bg-card shadow-soft transition hover:-translate-y-0.5 hover:shadow-md')}
+      <button
+        type="button"
+        onClick={() => openExpense({ groupId, expense: e })}
+        className={cn(rowClass, 'w-full bg-card text-left shadow-soft transition hover:-translate-y-0.5 hover:shadow-md')}
       >
         <span className={cn('grid size-12 shrink-0 place-items-center rounded-full', cat.tint)}>
           <cat.icon className="size-5" />
@@ -74,7 +76,7 @@ export default function ExpenseRow({ entry: e, groupId, me, nameOf, currency, gr
             Ta part {money(mine)}
           </span>
         </span>
-      </Link>
+      </button>
     </li>
   )
 }

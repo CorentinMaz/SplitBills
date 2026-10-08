@@ -10,7 +10,8 @@ import {
   Utensils,
 } from 'lucide-react'
 
-export type Category = { id: string; label: string; icon: LucideIcon; tint: string }
+/** `color` is the solid swatch used in charts. */
+export type Category = { id: string; label: string; icon: LucideIcon; tint: string; color: string }
 
 export const TINTS = {
   teal: 'bg-teal-100 text-teal-700 dark:bg-teal-400/15 dark:text-teal-300',
@@ -25,14 +26,14 @@ export const TINTS = {
 }
 
 export const CATEGORIES: Category[] = [
-  { id: 'groceries', label: 'Épicerie', icon: ShoppingCart, tint: TINTS.teal },
-  { id: 'food', label: 'Resto', icon: Utensils, tint: TINTS.orange },
-  { id: 'home', label: 'Logement', icon: House, tint: TINTS.blue },
-  { id: 'bills', label: 'Factures', icon: Receipt, tint: TINTS.violet },
-  { id: 'transport', label: 'Transport', icon: Car, tint: TINTS.cyan },
-  { id: 'fun', label: 'Sorties', icon: PartyPopper, tint: TINTS.pink },
-  { id: 'travel', label: 'Voyage', icon: Plane, tint: TINTS.indigo },
-  { id: 'other', label: 'Autre', icon: Ellipsis, tint: TINTS.gray },
+  { id: 'groceries', color: '#0d9488', label: 'Épicerie', icon: ShoppingCart, tint: TINTS.teal },
+  { id: 'food', color: '#f97316', label: 'Resto', icon: Utensils, tint: TINTS.orange },
+  { id: 'home', color: '#2563eb', label: 'Logement', icon: House, tint: TINTS.blue },
+  { id: 'bills', color: '#7c3aed', label: 'Factures', icon: Receipt, tint: TINTS.violet },
+  { id: 'transport', color: '#0891b2', label: 'Transport', icon: Car, tint: TINTS.cyan },
+  { id: 'fun', color: '#db2777', label: 'Sorties', icon: PartyPopper, tint: TINTS.pink },
+  { id: 'travel', color: '#4f46e5', label: 'Voyage', icon: Plane, tint: TINTS.indigo },
+  { id: 'other', color: '#94a3b8', label: 'Autre', icon: Ellipsis, tint: TINTS.gray },
 ]
 
 export function categoryOf(id?: string) {
