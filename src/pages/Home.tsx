@@ -301,7 +301,7 @@ function DesktopHome({
         </Card>
       </div>
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_400px]">
         <div className="flex min-w-0 flex-col gap-5">
           <div className="flex items-end justify-between">
             <div>
@@ -317,8 +317,8 @@ function DesktopHome({
           {groups.length === 0 ? (
             <RecentList groups={groups} recent={[]} showGroup={false} />
           ) : (
-            <div className="grid grid-cols-2 gap-4">
-              {groups.slice(0, 4).map((g) => (
+            <div className="grid grid-cols-2 gap-4 2xl:grid-cols-3">
+              {groups.slice(0, 6).map((g) => (
                 <GroupMiniCard key={g.id} group={g} summary={summaries[g.id]} />
               ))}
             </div>

@@ -8,7 +8,7 @@ export function Page({ children, className }: { children: ReactNode; className?:
   return (
     <main
       className={cn(
-        'mx-auto flex w-full max-w-5xl flex-col gap-5 px-5 pt-[calc(16px+env(safe-area-inset-top))] pb-32 md:px-10 md:pt-8 md:pb-12',
+        'mx-auto flex w-full max-w-5xl flex-col gap-5 px-5 pt-[calc(16px+env(safe-area-inset-top))] pb-32 md:max-w-none md:px-8 md:pt-8 md:pb-12 xl:px-10',
         className,
       )}
     >

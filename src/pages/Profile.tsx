@@ -73,7 +73,7 @@ export default function Profile() {
   }
 
   return (
-    <Page className="md:max-w-5xl">
+    <Page>
       <div className="hidden flex-col gap-1 md:flex">
         <Eyebrow>Espace personnel</Eyebrow>
         <h1 className="text-[34px] font-bold tracking-tight">Mon profil & paramètres</h1>

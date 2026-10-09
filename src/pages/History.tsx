@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, Banknote, ChevronLeft, ChevronRight, History as HistoryIcon, Plus, TrendingUp, Wallet, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Banknote, ChevronLeft, ChevronRight, History as HistoryIcon, Plus, Search, TrendingUp, Wallet, X } from 'lucide-react'
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { displayName, useUser } from '@/auth'
@@ -9,6 +9,7 @@ import UserAvatar from '@/components/UserAvatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useAllEntries } from '@/data/entries'
@@ -202,11 +203,22 @@ export default function History() {
 
         <Card className="gap-4 border-0 p-5 shadow-soft">
           <div className="flex flex-wrap gap-3">
+            <div className="relative w-full max-w-xs">
+              <Search className="absolute top-1/2 left-4 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={params.get('q') ?? ''}
+                onChange={(e) => {
+                  setParams(e.target.value ? { q: e.target.value } : {}, { replace: true })
+                  setPage(0)
+                }}
+                placeholder="Rechercher une dépense…"
+                className="h-11 rounded-full border-0 bg-muted pl-11"
+              />
+            </div>
             <FilterSelect value={month} onChange={reset(setMonth)} options={[['all', 'Tous les mois'], ...months.map((m) => [m, monthLabel(m + '-01')] as [string, string])]} />
             <FilterSelect value={groupFilter} onChange={reset(setGroupFilter)} options={[['all', 'Tous les groupes'], ...groups.map((g) => [g.id, g.name] as [string, string])]} />
             <FilterSelect value={category} onChange={reset(setCategory)} options={[['all', 'Toutes les catégories'], ...CATEGORIES.map((c) => [c.id, c.label] as [string, string])]} />
             <FilterSelect value={payer} onChange={reset(setPayer)} options={[['all', 'Payé par : tous'], ['me', 'Payé par : moi'], ['others', 'Payé par : les autres']]} />
-            {searchChip}
           </div>
           <span className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
             {filtered.length} résultat{filtered.length > 1 ? 's' : ''}

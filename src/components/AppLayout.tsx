@@ -1,12 +1,11 @@
 import { signOut } from 'firebase/auth'
-import { History, Home, LogOut, Plus, Search, User, Users, Wallet, type LucideIcon } from 'lucide-react'
-import { useState, type CSSProperties } from 'react'
-import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { History, Home, LogOut, Plus, User, Users, Wallet, type LucideIcon } from 'lucide-react'
+import type { CSSProperties } from 'react'
+import { Link, Outlet, useLocation } from 'react-router-dom'
 import { displayName, useUser } from '@/auth'
 import { ExpenseDialogProvider, useOpenExpense } from '@/components/ExpenseDialog'
 import UserAvatar from '@/components/UserAvatar'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
   Sidebar,
   SidebarContent,
@@ -109,35 +108,6 @@ function AppSidebar() {
   )
 }
 
-/** Desktop top bar: search that jumps to the history page. */
-function TopBar() {
-  const user = useUser()
-  const navigate = useNavigate()
-  const [q, setQ] = useState('')
-  return (
-    <div className="sticky top-0 z-10 hidden items-center justify-between gap-4 border-b bg-background/85 px-10 py-3 backdrop-blur md:flex">
-      <form
-        className="relative w-full max-w-md"
-        onSubmit={(e) => {
-          e.preventDefault()
-          navigate(`/history?q=${encodeURIComponent(q.trim())}`)
-        }}
-      >
-        <Search className="absolute top-1/2 left-4 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Rechercher une dépense…"
-          className="h-11 rounded-full border-0 bg-card pl-11 shadow-soft"
-        />
-      </form>
-      <Link to="/profile" aria-label="Profil">
-        <UserAvatar id={user.uid} name={displayName(user)} className="size-10" />
-      </Link>
-    </div>
-  )
-}
-
 /** Phone: floating dark pill at the bottom, active tab expands with its label. */
 function MobileNav() {
   const active = useActiveTab()
@@ -172,7 +142,6 @@ export default function AppLayout() {
       <SidebarProvider style={{ '--sidebar-width': '17rem' } as CSSProperties}>
         <AppSidebar />
         <SidebarInset className="bg-background">
-          <TopBar />
           <Outlet />
         </SidebarInset>
         <MobileNav />

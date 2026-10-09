@@ -233,7 +233,7 @@ function DesktopGroup({ group, entries }: { group: Group; entries: Entry[] }) {
         </div>
       </Card>
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_400px]">
         <div className="flex min-w-0 flex-col gap-4">
           <Card className="flex-row flex-wrap items-center justify-between gap-3 border-0 p-3 shadow-soft">
             <Tabs value={tab} onValueChange={setTab}>
