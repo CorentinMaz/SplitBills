@@ -35,7 +35,7 @@ export default function History() {
   const q = params.get('q')?.trim().toLowerCase() ?? ''
   const [category, setCategory] = useState<string>('all')
   const [groupFilter, setGroupFilter] = useState('all')
-  const [month, setMonth] = useState('all')
+  const [month, setMonth] = useState(params.get('month') ?? 'all')
   const [payer, setPayer] = useState('all')
   const [page, setPage] = useState(0)
 
@@ -64,7 +64,8 @@ export default function History() {
   const all = groups
     .flatMap((g) => (byGroup?.[g.id] ?? []).map((entry) => ({ entry, group: g })))
     .sort((a, b) => b.entry.date.localeCompare(a.entry.date) || b.entry.createdAt - a.entry.createdAt)
-  const months = [...new Set(all.map((x) => x.entry.date.slice(0, 7)))]
+  // Months with data, plus the one asked for in ?month= so the select can show it even if empty.
+  const months = [...new Set([...all.map((x) => x.entry.date.slice(0, 7)), ...(month !== 'all' ? [month] : [])])].sort().reverse()
 
   const matches = ({ entry, group }: { entry: Entry; group: Group }) => {
     if (category !== 'all' && !(entry.kind === 'expense' && (entry.category ?? 'other') === category)) return false

@@ -1,4 +1,4 @@
-import { CalendarDays, Camera, ChevronRight, Plus, TrendingDown, TrendingUp, Users, Wallet } from 'lucide-react'
+import { Camera, ChevronRight, Plus, TrendingDown, TrendingUp, Users, Wallet } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { displayName, useUser } from '@/auth'
@@ -6,6 +6,7 @@ import Donut from '@/components/Donut'
 import { useOpenExpense } from '@/components/ExpenseDialog'
 import ExpenseRow from '@/components/ExpenseRow'
 import GroupIcon from '@/components/GroupIcon'
+import MonthPicker from '@/components/MonthPicker'
 import { Eyebrow, Fab, Loading, Money, Page } from '@/components/Page'
 import UserAvatar, { AvatarStack } from '@/components/UserAvatar'
 import { Badge } from '@/components/ui/badge'
@@ -15,7 +16,7 @@ import { Separator } from '@/components/ui/separator'
 import { useAllEntries } from '@/data/entries'
 import { useGroups } from '@/data/groups'
 import { categoryOf } from '@/lib/categories'
-import { currentMonthName, relativeDay } from '@/lib/dates'
+import { monthName, relativeDay } from '@/lib/dates'
 import { formatMoney, round2, today } from '@/lib/money'
 import { nameIn } from '@/lib/names'
 import { recordTransfers, remind } from '@/lib/settle'
@@ -28,11 +29,15 @@ export default function Home() {
   const groups = useGroups(user.uid)
   const byGroup = useAllEntries(groups)
   const [filter, setFilter] = useState<string | null>(null)
+  const [month, setMonth] = useState(today().slice(0, 7))
 
   if (!groups || (groups.length > 0 && !byGroup)) return <Loading />
   const data = byGroup ?? {}
 
-  const month = today().slice(0, 7)
+  const isCurrent = month === today().slice(0, 7)
+  const earliest = groups
+    .flatMap((g) => (data[g.id] ?? []).map((e) => e.date.slice(0, 7)))
+    .reduce((min, m) => (m < min ? m : min), today().slice(0, 7))
   const shown = groups.filter((g) => !filter || g.id === filter)
   const summaries = Object.fromEntries(groups.map((g) => [g.id, groupSummary(g, data[g.id] ?? [], user.uid)]))
   const monthExpenses = (gs: Group[]) =>
@@ -43,8 +48,10 @@ export default function Home() {
   const recent = (gs: Group[], n: number) =>
     gs
       .flatMap((g) => (data[g.id] ?? []).map((entry) => ({ entry, group: g })))
+      .filter(({ entry }) => isCurrent || entry.date.startsWith(month))
       .sort((a, b) => b.entry.date.localeCompare(a.entry.date) || b.entry.createdAt - a.entry.createdAt)
       .slice(0, n)
+  const picker = { month, setMonth, earliest, isCurrent }
 
   return (
     <>
@@ -55,6 +62,7 @@ export default function Home() {
         spent={spent}
         balance={balance}
         recent={recent(shown, 6)}
+        picker={picker}
       />
       <DesktopHome
         groups={groups}
@@ -63,12 +71,18 @@ export default function Home() {
         balance={round2(groups.reduce((s, g) => s + summaries[g.id].balance, 0))}
         monthExpenses={monthExpenses(groups)}
         recent={recent(groups, 5)}
+        picker={picker}
       />
     </>
   )
 }
 
 type Recent = { entry: Entry; group: Group }[]
+type Picker = { month: string; setMonth: (m: string) => void; earliest: string; isCurrent: boolean }
+
+function historyLink(p: Picker) {
+  return p.isCurrent ? '/history' : `/history?month=${p.month}`
+}
 
 function MobileHome({
   groups,
@@ -77,6 +91,7 @@ function MobileHome({
   spent,
   balance,
   recent,
+  picker,
 }: {
   groups: Group[]
   filter: string | null
@@ -84,6 +99,7 @@ function MobileHome({
   spent: number
   balance: number
   recent: Recent
+  picker: Picker
 }) {
   const user = useUser()
   const fabGroup = filter ?? (groups.length === 1 ? groups[0].id : undefined)
@@ -98,14 +114,16 @@ function MobileHome({
 
       <div>
         <h1 className="text-[32px] leading-10 font-bold tracking-tight">Aperçu</h1>
-        <p className="mt-1.5 text-muted-foreground">Voici un résumé de vos finances partagées ce mois-ci.</p>
+        <p className="mt-1.5 text-muted-foreground">Voici un résumé de vos finances partagées.</p>
       </div>
+
+      <MonthPicker value={picker.month} onChange={picker.setMonth} earliest={picker.earliest} className="self-start" />
 
       <section className="relative flex flex-col gap-2.5 overflow-hidden rounded-xl bg-brand p-5 text-white shadow-xl shadow-teal-700/25">
         <span className="absolute -top-20 -right-16 size-56 rounded-full bg-white/10" />
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold tracking-wider uppercase opacity-85">
-            Dépenses totales ({currentMonthName()})
+            Dépenses totales ({monthName(picker.month, false)})
           </span>
           <span className="grid size-9 place-items-center rounded-full bg-white/20">
             <TrendingUp className="size-5" />
@@ -146,9 +164,11 @@ function MobileHome({
       )}
 
       <div className="mt-1 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Dépenses récentes</h2>
+        <h2 className="text-lg font-semibold">
+          {picker.isCurrent ? 'Dépenses récentes' : `Dépenses de ${monthName(picker.month, false)}`}
+        </h2>
         <Button asChild variant="action" className="-mr-4">
-          <Link to="/history">Voir tout</Link>
+          <Link to={historyLink(picker)}>Voir tout</Link>
         </Button>
       </div>
 
@@ -196,6 +216,7 @@ function DesktopHome({
   balance,
   monthExpenses,
   recent,
+  picker,
 }: {
   groups: Group[]
   data: Record<string, Entry[]>
@@ -203,6 +224,7 @@ function DesktopHome({
   balance: number
   monthExpenses: Expense[]
   recent: Recent
+  picker: Picker
 }) {
   const user = useUser()
   const openExpense = useOpenExpense()
@@ -225,10 +247,7 @@ function DesktopHome({
           </Eyebrow>
           <h1 className="text-[34px] font-bold tracking-tight">Bonjour, {firstName} 👋</h1>
         </div>
-        <Badge variant="outline" className="h-10 gap-2 rounded-full bg-card px-4 text-sm font-semibold capitalize">
-          <CalendarDays className="size-4 text-primary" />
-          {currentMonthName()} {today().slice(0, 4)}
-        </Badge>
+        <MonthPicker value={picker.month} onChange={picker.setMonth} earliest={picker.earliest} />
       </div>
 
       <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
@@ -326,11 +345,15 @@ function DesktopHome({
 
           <div className="mt-2 flex items-end justify-between">
             <div>
-              <h2 className="text-2xl font-semibold">Dernières dépenses</h2>
-              <p className="text-sm text-muted-foreground">Activité synchronisée récente</p>
+              <h2 className="text-2xl font-semibold first-letter:uppercase">
+                {picker.isCurrent ? 'Dernières dépenses' : `Dépenses de ${monthName(picker.month)}`}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {picker.isCurrent ? 'Activité synchronisée récente' : 'Les dépenses de ce mois-là'}
+              </p>
             </div>
             <Button asChild variant="action" className="-mr-4">
-              <Link to="/history">
+              <Link to={historyLink(picker)}>
                 Voir tout l'historique <ChevronRight />
               </Link>
             </Button>
@@ -379,19 +402,21 @@ function DesktopHome({
 
           <Card className="gap-4 border-0 p-5 shadow-soft">
             <div>
-              <h2 className="text-xl font-semibold">Répartition du mois</h2>
+              <h2 className="text-xl font-semibold">
+                Répartition {picker.isCurrent ? 'du mois' : `de ${monthName(picker.month, false)}`}
+              </h2>
               <p className="text-sm text-muted-foreground">Dépenses totales : {formatMoney(monthTotal)}</p>
             </div>
             <div className="flex justify-center py-2">
               <Donut slices={categories.map((c) => ({ value: c.amount, color: categoryOf(c.id).color }))}>
                 <span className="flex flex-col">
-                  <span className="text-xs font-bold tracking-wider text-muted-foreground uppercase">{currentMonthName()}</span>
+                  <span className="text-xs font-bold tracking-wider text-muted-foreground uppercase">{monthName(picker.month, false)}</span>
                   <span className="text-xl font-bold">{formatMoney(monthTotal)}</span>
                 </span>
               </Donut>
             </div>
             <ul className="flex flex-col gap-2">
-              {categories.length === 0 && <li className="text-sm text-muted-foreground">Aucune dépense ce mois-ci.</li>}
+              {categories.length === 0 && <li className="text-sm text-muted-foreground">Aucune dépense ce mois-là.</li>}
               {categories.map((c) => {
                 const cat = categoryOf(c.id)
                 return (
