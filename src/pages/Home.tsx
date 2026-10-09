@@ -147,9 +147,9 @@ function MobileHome({
 
       <div className="mt-1 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Dépenses récentes</h2>
-        <Link to="/history" className="text-xs font-bold tracking-wider text-primary uppercase">
-          Voir tout
-        </Link>
+        <Button asChild variant="action" className="-mr-4">
+          <Link to="/history">Voir tout</Link>
+        </Button>
       </div>
 
       <RecentList groups={groups} recent={recent} showGroup={groups.length > 1 && !filter} />
@@ -283,8 +283,8 @@ function DesktopHome({
           <span className="text-[34px] font-bold tracking-tight text-negative">{formatMoney(owe)}</span>
           {owe > 0 ? (
             <Button
-              variant="link"
-              className="h-auto justify-start p-0 text-xs font-bold tracking-wider uppercase"
+              variant="action"
+              className="-ml-4 self-start"
               onClick={() =>
                 confirm(`Enregistrer le remboursement de ${formatMoney(owe)}?`) &&
                 recordTransfers(
@@ -329,9 +329,11 @@ function DesktopHome({
               <h2 className="text-2xl font-semibold">Dernières dépenses</h2>
               <p className="text-sm text-muted-foreground">Activité synchronisée récente</p>
             </div>
-            <Link to="/history" className="flex items-center gap-1 text-xs font-bold tracking-wider text-primary uppercase">
-              Voir tout l'historique <ChevronRight className="size-4" />
-            </Link>
+            <Button asChild variant="action" className="-mr-4">
+              <Link to="/history">
+                Voir tout l'historique <ChevronRight />
+              </Link>
+            </Button>
           </div>
           {groups.length > 0 && <RecentList groups={groups} recent={recent} showGroup={groups.length > 1} />}
         </div>
@@ -415,11 +417,11 @@ function DesktopHome({
               Prends ton ticket de caisse en photo. SplitBills lit le total, le magasin et la date pour toi.
             </p>
             <Button
-              variant="link"
-              className="h-auto justify-start p-0 text-xs font-bold tracking-wider uppercase"
+              variant="action"
+              className="-ml-4 self-start"
               onClick={() => openExpense()}
             >
-              Essayer avec un ticket <Camera />
+              Essayer avec un ticket <ChevronRight />
             </Button>
           </Card>
         </div>

@@ -60,13 +60,13 @@ export default function EntryRowWide({ entry: e, group, me }: { entry: Entry; gr
   const edit = () => openExpense({ groupId: group.id, expense: e })
   return (
     <li className="flex items-center gap-4 rounded-xl bg-card px-5 py-4 shadow-soft transition hover:shadow-md">
-      <button type="button" onClick={edit} className="flex min-w-0 flex-1 items-center gap-4 text-left">
+      <button type="button" onClick={edit} className="group/row flex min-w-0 flex-1 items-center gap-4 text-left">
         <span className={cn('grid size-12 shrink-0 place-items-center rounded-xl', cat.tint)}>
           <cat.icon className="size-5" />
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="flex items-center gap-2">
-            <span className="truncate text-[17px] font-semibold">{e.title}</span>
+            <span className="truncate text-[17px] font-semibold group-hover/row:text-primary">{e.title}</span>
             <Badge variant="secondary" className="rounded-full bg-muted text-muted-foreground">
               {parts} part{parts > 1 ? 's' : ''}
             </Badge>

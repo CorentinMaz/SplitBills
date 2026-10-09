@@ -284,8 +284,8 @@ function DesktopGroup({ group, entries }: { group: Group; entries: Entry[] }) {
           <Card className="gap-4 border-0 p-5 shadow-soft">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold">Membres du groupe</h2>
-              <Button variant="link" className="h-auto gap-1 p-0 text-sm font-semibold" onClick={invite}>
-                <UserPlus className="size-4" /> Inviter
+              <Button variant="action" className="-mr-4" onClick={invite}>
+                <UserPlus /> Inviter
               </Button>
             </div>
             {group.memberIds.map((id) => {

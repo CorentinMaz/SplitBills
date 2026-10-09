@@ -256,7 +256,7 @@ function Form({
                   type="button"
                   onClick={() => setCategory(c.id)}
                   className={cn(
-                    'flex min-w-20 shrink-0 flex-col items-center gap-1.5 rounded-xl border-2 border-transparent bg-muted px-2 py-3 text-xs font-semibold text-muted-foreground transition',
+                    'flex min-w-20 shrink-0 flex-col items-center gap-1.5 rounded-xl border-2 border-transparent bg-muted px-2 py-3 text-xs font-semibold text-muted-foreground transition hover:border-primary/40 hover:text-foreground',
                     on && 'border-primary bg-secondary text-secondary-foreground',
                   )}
                 >
@@ -300,8 +300,8 @@ function Form({
             <Label className={fieldLabel}>Pour qui ?</Label>
             <Button
               type="button"
-              variant="link"
-              className="h-auto p-0 font-semibold"
+              variant="action"
+              className="-mr-4 h-7"
               onClick={() => {
                 if (custom) setShares(defaultShares(group))
                 setCustom(!custom)

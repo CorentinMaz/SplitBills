@@ -152,7 +152,7 @@ function Settings({ group, entries }: { group: Group; entries: Entry[] }) {
                 </CardTitle>
                 <CardDescription>Répartition par défaut des nouvelles dépenses. Ex. 70 / 30 selon vos revenus.</CardDescription>
               </div>
-              <Button size="sm" className="hidden rounded-full md:flex" onClick={invite}>
+              <Button variant="action" className="-mr-4 hidden md:flex" onClick={invite}>
                 <UserPlus /> Inviter
               </Button>
             </CardHeader>

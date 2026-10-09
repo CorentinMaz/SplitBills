@@ -17,10 +17,13 @@ const buttonVariants = cva(
         outline:
           "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+          "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--primary)_22%)]",
         ghost:
           "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
         link: "text-primary underline-offset-4 hover:underline",
+        // Small uppercase text action ("Voir tout", "Tout régler"…): one look and one hover everywhere.
+        action:
+          "rounded-full text-xs font-bold tracking-wider text-primary uppercase hover:bg-primary/10 [&_svg]:transition-transform hover:[&_svg]:translate-x-0.5",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",

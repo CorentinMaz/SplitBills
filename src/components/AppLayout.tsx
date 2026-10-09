@@ -53,7 +53,7 @@ function AppSidebar() {
   return (
     <Sidebar className="border-r-0">
       <SidebarHeader className="gap-6 px-5 pt-7 pb-4">
-        <Link to="/" className="flex items-center gap-3">
+        <Link to="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
           <BrandMark />
           <span className="flex flex-col leading-tight">
             <span className="text-xl font-bold tracking-tight text-primary">SplitBills</span>
@@ -95,7 +95,7 @@ function AppSidebar() {
           <Link to="/profile">
             <UserAvatar id={user.uid} name={displayName(user)} />
           </Link>
-          <Link to="/profile" className="flex min-w-0 flex-1 flex-col leading-tight">
+          <Link to="/profile" className="flex min-w-0 flex-1 flex-col leading-tight hover:[&>span:first-child]:text-primary">
             <span className="truncate font-semibold">{displayName(user)}</span>
             <span className="truncate text-xs text-muted-foreground">{user.email}</span>
           </Link>
@@ -123,7 +123,7 @@ function MobileNav() {
             key={t.to}
             to={t.to}
             className={cn(
-              'flex h-11 items-center gap-2 rounded-full px-3.5 text-[13px] font-bold text-slate-400 transition-all',
+              'flex h-11 items-center gap-2 rounded-full px-3.5 text-[13px] font-bold text-slate-400 transition-all hover:text-white',
               on && 'bg-teal-400 px-4.5 text-teal-950',
             )}
           >

@@ -182,7 +182,7 @@ export default function Groups() {
 function MobileCard({ group: g, index, balance: bal }: { group: Group; index: number; balance: number }) {
   return (
     <Link to={`/g/${g.id}`} className="group">
-      <Card className="h-full gap-0 overflow-hidden border-0 py-0 shadow-soft">
+      <Card className="h-full gap-0 overflow-hidden border-0 py-0 shadow-soft transition group-hover:-translate-y-0.5 group-hover:shadow-md">
         <div className={cn('bg-dots h-16', groupColor(index))} />
         <div className="-mt-5 px-4">
           <AvatarStack people={g.memberIds.map((id) => ({ id, name: g.members[id]?.name }))} className="size-9" />

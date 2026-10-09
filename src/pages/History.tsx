@@ -95,7 +95,7 @@ export default function History() {
   const searchChip = q && (
     <Badge variant="secondary" className="h-8 gap-1.5 rounded-full px-3 text-sm">
       « {params.get('q')} »
-      <button aria-label="Effacer la recherche" onClick={() => setParams({})}>
+      <button aria-label="Effacer la recherche" className="rounded-full hover:text-destructive" onClick={() => setParams({})}>
         <X className="size-3.5" />
       </button>
     </Badge>
