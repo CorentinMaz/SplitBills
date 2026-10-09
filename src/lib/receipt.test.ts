@@ -13,7 +13,7 @@ TPS               0,52
 TVQ               1,05
 TOTAL            12,05
 VISA             12,05`
-    expect(parseReceipt(text)).toEqual({ merchant: 'IGA', total: 12.05, date: '2026-10-08' })
+    expect(parseReceipt(text)).toMatchObject({ merchant: 'IGA', total: 12.05, date: '2026-10-08' })
   })
 
   it('handles thousands separators and amount on next line', () => {
@@ -76,6 +76,20 @@ TVQ 1,60
 T0TAL 47,70
 MONTANT DU 2,30
 INTERAC 47,70`
+    expect(parseReceipt(text).total).toBe(47.7)
+  })
+
+  it('fixes common OCR slips in prices', () => {
+    expect(parseReceipt('TOTAL 47,7O\nDEBIT 47 ,70').total).toBe(47.7)
+  })
+
+  it('lists the other likely totals for a quick fix', () => {
+    const text = 'SOUS-TOTAL 45,30\nTOTAL 47,7?\nDEBIT 47,70\nECONOMIES 6,25'
+    expect(parseReceipt(text).amounts.slice(0, 2)).toEqual([47.7, 45.3])
+  })
+
+  it('votes when OCR misreads some copies of the total', () => {
+    const text = 'SOUS-TOTAL 45,30\nTPS 0,88\nTVQ 1,68\nTOTAL 47,76\nDEBIT 47,70\nMONTANT 47,78\nINTERAC 47,70'
     expect(parseReceipt(text).total).toBe(47.7)
   })
 })

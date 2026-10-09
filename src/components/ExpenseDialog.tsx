@@ -1,7 +1,8 @@
 import { Camera, Check, Pencil, Receipt, Trash2 } from 'lucide-react'
-import { createContext, useContext, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { useUser } from '@/auth'
+import { ReceiptScanner } from '@/components/ReceiptScanner'
 import UserAvatar from '@/components/UserAvatar'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -14,8 +15,8 @@ import { useGroups } from '@/data/groups'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { CATEGORIES } from '@/lib/categories'
 import { reportError } from '@/lib/errors'
-import { round2, today } from '@/lib/money'
-import { scanReceipt } from '@/lib/ocr'
+import { formatMoney, round2, today } from '@/lib/money'
+import type { ParsedReceipt } from '@/lib/receipt'
 import { cn } from '@/lib/utils'
 import type { Expense, Group } from '@/types'
 
@@ -114,7 +115,9 @@ function Form({
   const [custom, setCustom] = useState(
     !!existing && group.memberIds.some((id) => existing.shares[id] !== group.members[id]?.share),
   )
-  const [scan, setScan] = useState<{ progress: number } | null>(null)
+  const [scanFile, setScanFile] = useState<File | null>(null)
+  // Other totals read on the receipt, offered as one-tap fixes.
+  const [readAmounts, setReadAmounts] = useState<number[]>([])
   const [error, setError] = useState<string | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
 
@@ -131,22 +134,17 @@ function Form({
     if (!g.memberIds.includes(paidBy)) setPaidBy(user.uid)
   }
 
-  async function onPhoto(file: File | undefined) {
-    if (!file) return
+  const closeScanner = useCallback(() => setScanFile(null), [])
+
+  function onScanned(r: ParsedReceipt) {
+    setScanFile(null)
     setError(null)
-    setScan({ progress: 0 })
-    try {
-      const r = await scanReceipt(file, (progress) => setScan({ progress }))
-      if (r.total !== undefined) setAmount(r.total.toFixed(2))
-      if (r.merchant && !title) setTitle(r.merchant)
-      if (r.date) setDate(r.date)
-      if (r.total === undefined) setError('Total introuvable sur le ticket. Entre-le à la main.')
-      else toast.success('Ticket lu', { description: 'Vérifie le montant avant d’enregistrer.' })
-    } catch {
-      setError('Le scan a échoué. Vérifie ta connexion la première fois, puis réessaie.')
-    } finally {
-      setScan(null)
-    }
+    setReadAmounts(r.amounts)
+    if (r.total !== undefined) setAmount(r.total.toFixed(2))
+    if (r.merchant && !title) setTitle(r.merchant)
+    if (r.date) setDate(r.date)
+    if (r.total === undefined) setError('Total introuvable sur le ticket. Entre-le à la main.')
+    else toast.success('Ticket lu', { description: 'Vérifie le montant avant d’enregistrer.' })
   }
 
   async function submit(e: FormEvent) {
@@ -188,6 +186,28 @@ function Form({
             <span className="text-4xl font-bold text-primary">$</span>
           </div>
           <span className="text-sm text-muted-foreground">Devise du groupe · {group.currency}</span>
+          {readAmounts.length > 1 && (
+            <div className="flex flex-col items-center gap-2 pt-1">
+              <span className="text-xs text-muted-foreground">Pas le bon ? Autres montants lus :</span>
+              <div className="flex flex-wrap justify-center gap-2">
+                {readAmounts
+                  .filter((n) => Math.abs(n - value) > 0.005)
+                  .slice(0, 4)
+                  .map((n) => (
+                    <Button
+                      key={n}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full tabular-nums"
+                      onClick={() => setAmount(n.toFixed(2))}
+                    >
+                      {formatMoney(n)}
+                    </Button>
+                  ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <input
@@ -197,19 +217,26 @@ function Form({
           capture="environment"
           hidden
           onChange={(e) => {
-            onPhoto(e.target.files?.[0])
+            const file = e.target.files?.[0]
+            if (file) setScanFile(file)
             e.target.value = ''
           }}
+        />
+        <ReceiptScanner
+          key={scanFile ? `${scanFile.name}-${scanFile.lastModified}-${scanFile.size}` : 'none'}
+          file={scanFile}
+          onRetake={() => fileInput.current?.click()}
+          onClose={closeScanner}
+          onResult={onScanned}
         />
         <Button
           type="button"
           variant="secondary"
           className="h-12 rounded-full text-base"
-          disabled={!!scan}
           onClick={() => fileInput.current?.click()}
         >
           <Camera />
-          {scan ? `Lecture du ticket… ${Math.round(scan.progress * 100)} %` : 'Scanner un ticket'}
+          Scanner un ticket
         </Button>
 
         <div className="grid gap-4 md:grid-cols-[1fr_220px]">

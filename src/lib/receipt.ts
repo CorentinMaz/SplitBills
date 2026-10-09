@@ -4,6 +4,8 @@ export type OcrLine = { text: string; confidence: number; height: number }
 export type ParsedReceipt = {
   merchant?: string
   total?: number
+  /** Every plausible total, most likely first: shown as one-tap choices when the scan guesses wrong. */
+  amounts: number[]
   date?: string
 }
 
@@ -21,6 +23,13 @@ function toNumber(raw: string) {
   const cleaned = raw.replace(/[ ,.](?=\d{3}(?:[ ,.]|$))/g, '').replace(',', '.')
   const n = Number(cleaned)
   return Number.isFinite(n) ? n : undefined
+}
+
+/** Common OCR slips inside prices: "47,7O" -> "47,70", "47 ,70" -> "47,70", "47. 70" -> "47.70". */
+export function fixDigits(line: string) {
+  return line
+    .replace(/(\d)[Oo]|[Oo](?=\d)/g, (_, d) => (d ? `${d}0` : '0'))
+    .replace(/(\d) ?([.,]) ?(\d{2})(?!\d)/g, '$1$2$3')
 }
 
 function amountsIn(line: string) {
@@ -159,33 +168,42 @@ function amountsWhere(lines: string[], test: (line: string) => boolean) {
 
 const near = (a: number, b: number) => Math.abs(a - b) < 0.015
 
-function findTotal(lines: string[]) {
+function findTotals(lines: string[]) {
   const all = lines.flatMap(amountsIn)
-  if (!all.length) return undefined
-
-  // Best proof: subtotal + taxes, when that sum is printed somewhere.
   const subtotal = amountsWhere(lines, (l) => SUBTOTAL_WORDS.test(l)).at(-1)
-  if (subtotal !== undefined) {
-    const taxes = amountsWhere(lines, (l) => TAX_WORDS.test(l) && !/total/i.test(l))
-    const expected = subtotal + taxes.reduce((a, b) => a + b, 0)
-    const match = all.find((n) => near(n, expected))
-    if (match !== undefined) return match
-  }
-
-  // Else a "TOTAL" amount, preferring the one the card or cash line repeats.
   const labelled = amountsWhere(lines, (l) => TOTAL_WORDS.test(l) && !NOT_TOTAL_WORDS.test(l))
   const paid = amountsWhere(lines, (l) => PAYMENT_WORDS.test(l))
-  const confirmed = labelled.find((n) => paid.some((p) => near(p, n)))
-  if (confirmed !== undefined) return confirmed
-  if (labelled.length) return labelled.at(-1)
-  return Math.max(...all)
+
+  let total: number | undefined
+  // Best proof: subtotal + taxes, when that sum is printed somewhere.
+  const taxes = amountsWhere(lines, (l) => TAX_WORDS.test(l) && !/total/i.test(l))
+  if (subtotal !== undefined && taxes.length) {
+    const expected = subtotal + taxes.reduce((a, b) => a + b, 0)
+    total = all.find((n) => near(n, expected))
+  }
+  // Else a vote: the total is printed several times (TOTAL, DEBIT, MONTANT), and OCR rarely
+  // misreads every copy the same way. Ties go to the card or cash line: it's what was charged.
+  if (total === undefined) {
+    const votes = [...labelled, ...paid]
+    const count = (n: number) => votes.filter((v) => near(v, n)).length
+    const best = Math.max(0, ...votes.map(count))
+    const tied = votes.filter((n) => count(n) === best)
+    total = tied.find((n) => paid.some((p) => near(p, n))) ?? tied.at(-1)
+  }
+  if (total === undefined && all.length) total = Math.max(...all)
+
+  // Item prices only make sense as choices when no subtotal anchors the bottom of the receipt.
+  const fallback = subtotal === undefined ? all.toSorted((a, b) => b - a) : []
+  const ranked = [total, ...labelled.toReversed(), ...paid, subtotal, ...fallback]
+  const amounts: number[] = []
+  for (const n of ranked) if (n !== undefined && n > 0 && !amounts.some((a) => near(a, n))) amounts.push(n)
+  return { total, amounts: amounts.slice(0, 6) }
 }
 
 export function parseReceipt(text: string, ocrLines?: OcrLine[]): ParsedReceipt {
-  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean)
+  const lines = text.split('\n').map((l) => fixDigits(l.trim())).filter(Boolean)
 
   const merchant = knownMerchant(text) ?? guessMerchant(lines, ocrLines)
 
-  const total = findTotal(lines)
-  return { merchant, total, date: parseDate(text) }
+  return { merchant, ...findTotals(lines), date: parseDate(lines.join('\n')) }
 }
