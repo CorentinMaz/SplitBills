@@ -2,11 +2,37 @@
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import path from 'node:path'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-export default defineConfig({
+// `npm run demo`: swap Firebase-backed modules for the in-memory ones in src/demo.
+const DEMO_SWAPS: Record<string, string> = {
+  'src/auth.tsx': 'src/demo/auth.tsx',
+  'src/firebase.ts': 'src/demo/firebase.ts',
+  'src/data/groups.ts': 'src/demo/groups.ts',
+  'src/data/entries.ts': 'src/demo/entries.ts',
+}
+
+function demoMode(): Plugin {
+  const swaps = Object.fromEntries(
+    Object.entries(DEMO_SWAPS).map(([from, to]) => [path.resolve(__dirname, from), path.resolve(__dirname, to)]),
+  )
+  return {
+    name: 'splitbills-demo',
+    enforce: 'pre',
+    async resolveId(source, importer, options) {
+      const resolved = await this.resolve(source, importer, { ...options, skipSelf: true })
+      const swap = resolved && swaps[resolved.id]
+      // Demo modules import each other through the same paths; don't redirect those.
+      if (swap && !importer?.includes('/src/demo/')) return swap
+      return resolved
+    },
+  }
+}
+
+export default defineConfig(({ mode }) => ({
   plugins: [
+    mode === 'demo' && demoMode(),
     react(),
     tailwindcss(),
     VitePWA({
@@ -45,4 +71,4 @@ export default defineConfig({
   test: {
     environment: 'node',
   },
-})
+}))

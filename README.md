@@ -39,5 +39,6 @@ Le lien d'invitation est `/join/{groupId}` : l'id du groupe sert de secret.
 ## Scripts
 
 - `npm run dev` — serveur local
+- `npm run demo` — l'app avec des données de test en mémoire, sans Firebase (rien n'est sauvegardé)
 - `npm test` — tests (soldes, parsing de tickets)
 - `npm run build` — build de prod
