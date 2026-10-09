@@ -2,6 +2,9 @@ import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, updateD
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { reportError } from '@/lib/errors'
+
+// A permission error on expenses means the group was deleted or we left it: the group page redirects, no toast needed.
+const ignoreGone = (e: unknown) => (e as { code?: string }).code !== 'permission-denied' && reportError(e)
 import type { Entry, Expense, Group, Payment } from '../types'
 
 const entriesOf = (groupId: string) => collection(db, 'groups', groupId, 'expenses')
@@ -14,7 +17,7 @@ export function useEntries(groupId: string) {
         query(entriesOf(groupId), orderBy('date', 'desc')),
         (snap) => setEntries(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Entry)),
         (e) => {
-          reportError(e)
+          ignoreGone(e)
           setEntries([])
         },
       ),
@@ -52,7 +55,7 @@ export function useAllEntries(groups: Group[] | null) {
         (snap) =>
           setByGroup((prev) => ({ ...prev, [groupId]: snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Entry) })),
         (e) => {
-          reportError(e)
+          ignoreGone(e)
           setByGroup((prev) => ({ ...prev, [groupId]: [] }))
         },
       ),

@@ -45,3 +45,11 @@ export async function leaveGroup(group: Group, uid: string) {
     groups: s.groups.map((g) => (g.id === group.id ? { ...g, memberIds: g.memberIds.filter((id) => id !== uid) } : g)),
   }))
 }
+
+export async function deleteGroup(group: Group) {
+  update((s) => {
+    const entries = { ...s.entries }
+    delete entries[group.id]
+    return { groups: s.groups.filter((g) => g.id !== group.id), entries }
+  })
+}

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useUser } from '@/auth'
+import DeleteGroupButton from '@/components/DeleteGroupButton'
 import GroupIcon from '@/components/GroupIcon'
 import { Loading, Money, Page } from '@/components/Page'
 import PageHeader from '@/components/PageHeader'
@@ -269,15 +270,20 @@ function Settings({ group, entries }: { group: Group; entries: Entry[] }) {
             <h2 className="flex items-center gap-2 text-lg font-semibold text-destructive">
               <TriangleAlert className="size-5" /> Zone de danger
             </h2>
-            {Math.abs(summary.balance) > 0.005 && (
+            {group.createdBy !== user.uid && Math.abs(summary.balance) > 0.005 && (
               <p className="flex gap-2 rounded-xl bg-card p-3 text-sm text-muted-foreground">
                 <Info className="size-4 shrink-0 text-destructive" />
                 Ton solde n'est pas à zéro ({formatMoney(summary.balance, group.currency)}). Règle-le avant de partir.
               </p>
             )}
-            <Button variant="outline" className="rounded-full border-destructive/30 bg-card text-destructive hover:text-destructive" onClick={leave}>
-              <LogOut /> Quitter le groupe
-            </Button>
+            {/* The creator can't leave, otherwise nobody could ever delete the group. */}
+            {group.createdBy === user.uid ? (
+              <DeleteGroupButton group={group} count={entries.length} />
+            ) : (
+              <Button variant="outline" className="rounded-full border-destructive/30 bg-card text-destructive hover:text-destructive" onClick={leave}>
+                <LogOut /> Quitter le groupe
+              </Button>
+            )}
           </Card>
         </div>
       </div>

@@ -3,12 +3,15 @@ import {
   addDoc,
   arrayUnion,
   collection,
+  deleteDoc,
   deleteField,
   doc,
+  getDocs,
   onSnapshot,
   query,
   updateDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore'
 import { useEffect, useState } from 'react'
 import { displayName } from '../auth'
@@ -75,4 +78,18 @@ export async function leaveGroup(group: Group, uid: string) {
     memberIds: group.memberIds.filter((id) => id !== uid),
     [`members.${uid}`]: deleteField(),
   })
+}
+
+/**
+ * Deletes the group and all its expenses. Firestore doesn't cascade to subcollections,
+ * so expenses go first (in batches of 500), then the group itself. Rules only let the creator do this.
+ */
+export async function deleteGroup(group: Group) {
+  const expenses = await getDocs(collection(db, 'groups', group.id, 'expenses'))
+  for (let i = 0; i < expenses.docs.length; i += 500) {
+    const batch = writeBatch(db)
+    expenses.docs.slice(i, i + 500).forEach((d) => batch.delete(d.ref))
+    await batch.commit()
+  }
+  await deleteDoc(doc(db, 'groups', group.id))
 }
