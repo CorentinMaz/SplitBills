@@ -3,6 +3,24 @@
 Web app installable (PWA) pour partager les dépenses au prorata des revenus (ex. 70 / 30).
 React + Vite + Firebase (Auth, Firestore). Scan de tickets en local avec Tesseract.js.
 
+## Captures
+
+![Accueil](docs/screenshots/dashboard.png)
+
+| Groupe | Suivi |
+|---|---|
+| ![Groupe](docs/screenshots/group.png) | ![Suivi](docs/screenshots/stats.png) |
+
+| Historique | Groupes |
+|---|---|
+| ![Historique](docs/screenshots/history.png) | ![Groupes](docs/screenshots/groups.png) |
+
+### Mobile
+
+| Accueil | Groupe | Nouvelle dépense | Suivi |
+|---|---|---|---|
+| <img src="docs/screenshots/m-home.png" width="200"> | <img src="docs/screenshots/m-group.png" width="200"> | <img src="docs/screenshots/m-add.png" width="200"> | <img src="docs/screenshots/m-stats.png" width="200"> |
+
 ## Mise en route
 
 1. Firebase console : crée un projet, puis une **Web app** et copie sa config.
@@ -14,14 +32,32 @@ React + Vite + Firebase (Auth, Firestore). Scan de tickets en local avec Tessera
 ## Déployer (Firebase Hosting)
 
 ```sh
-npm i -g firebase-tools
-firebase login
-firebase use --add            # choisis ton projet
+npx firebase-tools login
 npm run build
-firebase deploy               # hosting + règles Firestore
+npx firebase-tools deploy --project <projet>   # hosting + règles Firestore
 ```
 
 Ajoute le domaine de hosting dans *Authentication → Settings → Authorized domains* s'il n'y est pas.
+
+## Tester sur le téléphone avant la mise en ligne
+
+**Sur le Wi-Fi local** (rapide, sans installation PWA) :
+
+```sh
+npm run dev:host        # affiche une URL Network, ex. http://10.0.0.129:5173
+```
+
+Ouvre cette URL sur le téléphone (même Wi-Fi). La connexion Google exige d'ajouter l'IP dans
+*Authentication → Settings → Authorized domains*. Email / mot de passe marche tel quel.
+
+**Lien HTTPS temporaire** (PWA installable, comme en prod) :
+
+```sh
+npm run build
+npx firebase-tools hosting:channel:deploy test --expires 7d --project <projet>
+```
+
+Le lien `…--test-xxxx.web.app` expire tout seul. Ajoute son domaine aux *Authorized domains* pour Google.
 
 ## Installer sur le téléphone
 
