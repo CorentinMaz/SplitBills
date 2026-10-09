@@ -23,7 +23,7 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
         // Small uppercase text action ("Voir tout", "Tout régler"…): one look and one hover everywhere.
         action:
-          "rounded-full text-xs font-bold tracking-wider text-primary uppercase hover:bg-primary/10 [&_svg]:transition-transform hover:[&_svg]:translate-x-0.5",
+          "text-xs font-bold tracking-wider text-primary uppercase underline-offset-4 hover:underline [&_svg]:transition-transform hover:[&_svg]:translate-x-0.5",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",
