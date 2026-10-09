@@ -213,7 +213,7 @@ function DesktopGroup({ group, entries }: { group: Group; entries: Entry[] }) {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <Button className="h-11 rounded-full bg-brand px-5" onClick={() => openExpense({ groupId: group.id })}>
+            <Button variant="brand" className="h-11 rounded-full px-5" onClick={() => openExpense({ groupId: group.id })}>
               <Plus /> Ajouter
             </Button>
             <Button

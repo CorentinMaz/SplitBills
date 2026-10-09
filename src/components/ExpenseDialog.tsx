@@ -353,7 +353,7 @@ function Form({
           <Button type="button" variant="secondary" className="hidden h-12 rounded-full px-6 md:flex" onClick={onClose}>
             Annuler
           </Button>
-          <Button className="h-14 flex-1 rounded-full bg-brand text-base shadow-lg shadow-teal-700/30 md:h-12">
+          <Button variant="brand" className="h-14 flex-1 rounded-full text-base md:h-12">
             <Check /> {existing ? 'Enregistrer' : 'Ajouter la dépense'}
           </Button>
         </div>

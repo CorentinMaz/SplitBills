@@ -60,8 +60,8 @@ function AppSidebar() {
             <span className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">Dépenses partagées</span>
           </span>
         </Link>
-        <Button
-          className="h-12 rounded-full bg-brand text-base shadow-lg shadow-teal-700/30"
+        <Button variant="brand"
+          className="h-12 rounded-full text-base"
           onClick={() => openExpense({ groupId })}
         >
           <Plus /> Nouvelle dépense

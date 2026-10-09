@@ -9,6 +9,9 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        // Teal gradient CTA. The gradient is a background-image, so hover lifts and brightens instead of recoloring.
+        brand:
+          "bg-brand text-white shadow-lg shadow-teal-700/30 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-teal-700/40 hover:brightness-115 active:translate-y-0 active:brightness-95",
         destructive:
           "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40",
         outline:

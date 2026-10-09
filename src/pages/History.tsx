@@ -172,7 +172,7 @@ export default function History() {
             <h1 className="text-[34px] font-bold tracking-tight">Historique des dépenses</h1>
             <p className="text-muted-foreground">Retrouve et filtre toutes tes dépenses à travers tes groupes.</p>
           </div>
-          <Button className="h-11 rounded-full bg-brand px-6 shadow-lg shadow-teal-700/30" onClick={() => openExpense()}>
+          <Button variant="brand" className="h-11 rounded-full px-6" onClick={() => openExpense()}>
             <Plus /> Nouvelle dépense
           </Button>
         </div>

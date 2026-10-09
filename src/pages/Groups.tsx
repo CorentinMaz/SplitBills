@@ -73,8 +73,8 @@ export default function Groups() {
       <Button className="h-11 rounded-full px-5">Créer</Button>
     </form>
   ) : (
-    <Button
-      className="h-14 rounded-full bg-brand text-base shadow-lg shadow-teal-700/30 md:h-11 md:px-6"
+    <Button variant="brand"
+      className="h-14 rounded-full text-base md:h-11 md:px-6"
       onClick={() => setCreating(true)}
     >
       <Plus /> Nouveau groupe

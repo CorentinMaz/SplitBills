@@ -86,7 +86,7 @@ function Settings({ group, entries }: { group: Group; entries: Entry[] }) {
   }
 
   const saveButton = (
-    <Button className="h-11 rounded-full bg-brand px-6" disabled={total !== 100 || !dirty} onClick={save}>
+    <Button variant="brand" className="h-11 rounded-full px-6" disabled={total !== 100 || !dirty} onClick={save}>
       <Check /> Enregistrer
     </Button>
   )

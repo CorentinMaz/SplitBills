@@ -182,7 +182,7 @@ export default function Login() {
               />
             </Field>
             {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button className="mt-1 h-14 rounded-full bg-brand text-base shadow-lg shadow-teal-700/30" disabled={busy}>
+            <Button variant="brand" className="mt-1 h-14 rounded-full text-base" disabled={busy}>
               {mode === 'login' ? 'Se connecter' : 'Créer mon compte'} <ArrowRight />
             </Button>
           </form>

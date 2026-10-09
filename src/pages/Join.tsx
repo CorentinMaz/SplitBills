@@ -34,7 +34,7 @@ export default function Join() {
         <p className="text-muted-foreground">On t'a invité·e à partager des dépenses dans un groupe SplitBills.</p>
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
-      <Button className="h-14 rounded-full bg-brand text-base" onClick={join}>
+      <Button variant="brand" className="h-14 rounded-full text-base" onClick={join}>
         Rejoindre le groupe
       </Button>
     </main>
