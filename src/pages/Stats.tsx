@@ -1,12 +1,16 @@
-import { ArrowDownRight, ArrowUpRight, ChevronRight, Hash, HandCoins, Wallet } from 'lucide-react'
+import { ArrowDownRight, ArrowUpRight, ChevronRight, Hash, HandCoins, Wallet, X } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useUser } from '@/auth'
 import MonthPicker from '@/components/MonthPicker'
 import MonthlyColumns from '@/components/MonthlyColumns'
 import { Eyebrow, Loading, Page } from '@/components/Page'
+import { useOpenExpense } from '@/components/ExpenseDialog'
+import UserAvatar from '@/components/UserAvatar'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAllEntries } from '@/data/entries'
 import { useGroups } from '@/data/groups'
@@ -15,7 +19,7 @@ import { monthName, monthRange, relativeDay, shiftMonth } from '@/lib/dates'
 import { formatMoney, today } from '@/lib/money'
 import { myShareOf } from '@/lib/stats'
 import { cn } from '@/lib/utils'
-import type { Expense, Group } from '@/types'
+import type { Expense } from '@/types'
 
 type Metric = 'share' | 'paid'
 
@@ -28,6 +32,10 @@ export default function Stats() {
   const current = today().slice(0, 7)
   const [month, setMonth] = useState(current)
   const [metric, setMetric] = useState<Metric>('share')
+  // Clicking a group or category bar narrows the detail list to it.
+  const [focus, setFocus] = useState<{ kind: 'group' | 'category'; id: string } | null>(null)
+  const [sort, setSort] = useState<'date' | 'amount'>('date')
+  const openExpense = useOpenExpense()
 
   if (!groups || (groups.length > 0 && !byGroup)) return <Loading />
 
@@ -72,10 +80,20 @@ export default function Stats() {
     .filter((x) => x.value > 0.005)
     .sort((a, b) => b.value - a.value)
 
-  const biggest = [...thisMonth]
-    .filter(({ e }) => valueOf(e) > 0)
-    .sort((a, b) => valueOf(b.e) - valueOf(a.e))
-    .slice(0, 5)
+  const toggleFocus = (kind: 'group' | 'category', id: string) =>
+    setFocus((f) => (f?.kind === kind && f.id === id ? null : { kind, id }))
+  const detail = thisMonth
+    .filter(({ e }) => myShareOf(e, me) > 0.005 || e.paidBy === me)
+    .filter(({ e, g }) => !focus || (focus.kind === 'group' ? g.id === focus.id : (e.category ?? 'other') === focus.id))
+    .sort((a, b) =>
+      sort === 'amount'
+        ? valueOf(b.e) - valueOf(a.e)
+        : b.e.date.localeCompare(a.e.date) || b.e.createdAt - a.e.createdAt,
+    )
+  const detailShare = detail.reduce((s, { e }) => s + myShareOf(e, me), 0)
+  const detailPaid = detail.reduce((s, { e }) => s + (e.paidBy === me ? e.amount : 0), 0)
+  const focusLabel =
+    focus && (focus.kind === 'group' ? groups.find((g) => g.id === focus.id)?.name : categoryOf(focus.id).label)
 
   const label = month === current ? 'ce mois-ci' : `en ${monthName(month, false)}`
 
@@ -141,14 +159,16 @@ export default function Stats() {
         <Card className="gap-4 border-0 p-5 shadow-soft md:p-6">
           <div>
             <h2 className="text-xl font-semibold">Par groupe</h2>
-            <p className="text-sm text-muted-foreground first-letter:uppercase">{label}</p>
+            <p className="text-sm text-muted-foreground first-letter:uppercase">{label} · clique pour filtrer le détail</p>
           </div>
           {perGroup.length === 0 && <Empty />}
           {perGroup.map(({ group, value, groupTotal }) => (
             <BarRow
               key={group.id}
-              label={<GroupLabel group={group} />}
+              label={group.name}
               value={value}
+              active={focus?.kind === 'group' ? focus.id === group.id : undefined}
+              onClick={() => toggleFocus('group', group.id)}
               max={perGroup[0].value}
               share={total ? value / total : 0}
               color="var(--primary)"
@@ -160,7 +180,7 @@ export default function Stats() {
         <Card className="gap-4 border-0 p-5 shadow-soft md:p-6">
           <div>
             <h2 className="text-xl font-semibold">Par catégorie</h2>
-            <p className="text-sm text-muted-foreground first-letter:uppercase">{label}</p>
+            <p className="text-sm text-muted-foreground first-letter:uppercase">{label} · clique pour filtrer le détail</p>
           </div>
           {perCategory.length === 0 && <Empty />}
           {perCategory.map(({ id, value }) => {
@@ -177,6 +197,8 @@ export default function Stats() {
                   </span>
                 }
                 value={value}
+                active={focus?.kind === 'category' ? focus.id === id : undefined}
+                onClick={() => toggleFocus('category', id)}
                 max={perCategory[0].value}
                 share={total ? value / total : 0}
                 color={cat.color}
@@ -186,41 +208,151 @@ export default function Stats() {
         </Card>
       </div>
 
-      <Card className="gap-3 border-0 p-5 shadow-soft md:p-6">
-        <div className="flex items-end justify-between gap-3">
+      <Card className="gap-4 border-0 p-5 shadow-soft md:p-6">
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="text-xl font-semibold">Plus grosses dépenses</h2>
-            <p className="text-sm text-muted-foreground first-letter:uppercase">{label}</p>
+            <h2 className="text-xl font-semibold">Détail des dépenses</h2>
+            <p className="text-sm text-muted-foreground first-letter:uppercase">
+              {label} · {detail.length} dépense{detail.length > 1 ? 's' : ''}
+            </p>
           </div>
-          <Button asChild variant="action" className="-mr-4">
-            <Link to={`/history?month=${month}`}>
-              Tout voir <ChevronRight />
-            </Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {focus && (
+              <Badge variant="secondary" className="h-8 gap-1.5 rounded-full px-3 text-sm">
+                {focusLabel}
+                <button aria-label="Retirer le filtre" className="rounded-full hover:text-destructive" onClick={() => setFocus(null)}>
+                  <X className="size-3.5" />
+                </button>
+              </Badge>
+            )}
+            <Tabs value={sort} onValueChange={(v) => setSort(v as 'date' | 'amount')}>
+              <TabsList className="h-9 rounded-full">
+                <TabsTrigger value="date" className="rounded-full px-3 text-xs">
+                  Par date
+                </TabsTrigger>
+                <TabsTrigger value="amount" className="rounded-full px-3 text-xs">
+                  Par montant
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
         </div>
-        {biggest.length === 0 && <Empty />}
-        <ul className="flex flex-col">
-          {biggest.map(({ e, g }) => {
-            const cat = categoryOf(e.category)
-            return (
-              <li key={e.id} className="flex items-center gap-3.5 border-b py-3 last:border-0">
-                <span className={cn('grid size-10 shrink-0 place-items-center rounded-full', cat.tint)}>
-                  <cat.icon className="size-4.5" />
-                </span>
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate font-semibold">{e.title}</span>
-                  <span className="truncate text-sm text-muted-foreground">
-                    {g.name} · {relativeDay(e.date)}
-                  </span>
-                </span>
-                <span className="flex flex-col items-end">
-                  <strong>{formatMoney(valueOf(e), g.currency)}</strong>
-                  <span className="text-xs text-muted-foreground">sur {formatMoney(e.amount, g.currency)}</span>
+
+        {detail.length === 0 ? (
+          <Empty />
+        ) : (
+          <>
+            {/* Phone: compact rows. */}
+            <ul className="flex flex-col md:hidden">
+              {detail.map(({ e, g }) => {
+                const cat = categoryOf(e.category)
+                return (
+                  <li key={e.id}>
+                    <button
+                      type="button"
+                      onClick={() => openExpense({ groupId: g.id, expense: e })}
+                      className="flex w-full items-center gap-3 border-b py-3 text-left"
+                    >
+                      <span className={cn('grid size-10 shrink-0 place-items-center rounded-full', cat.tint)}>
+                        <cat.icon className="size-4.5" />
+                      </span>
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate font-semibold">{e.title}</span>
+                        <span className="truncate text-xs text-muted-foreground">
+                          {g.name} · {relativeDay(e.date)} · {e.paidBy === me ? 'payé par toi' : `payé par ${g.members[e.paidBy]?.name ?? '?'}`}
+                        </span>
+                      </span>
+                      <span className="flex flex-col items-end">
+                        <strong>{formatMoney(myShareOf(e, me), g.currency)}</strong>
+                        <span className="text-[11px] whitespace-nowrap text-muted-foreground">sur {formatMoney(e.amount, g.currency)}</span>
+                      </span>
+                    </button>
+                  </li>
+                )
+              })}
+              <li className="flex justify-between pt-3 text-sm font-semibold">
+                <span>Total</span>
+                <span>
+                  Ma part {formatMoney(detailShare)} · payé {formatMoney(detailPaid)}
                 </span>
               </li>
-            )
-          })}
-        </ul>
+            </ul>
+
+            {/* Desktop: full table. */}
+            <div className="hidden overflow-hidden rounded-xl border md:block">
+              <Table>
+                <TableHeader className="bg-muted/60">
+                  <TableRow className="hover:bg-transparent">
+                    {['Date', 'Dépense', 'Groupe', 'Payé par', 'Total', 'Ma part', "J'ai payé"].map((h, i) => (
+                      <TableHead
+                        key={h}
+                        className={cn('h-11 text-xs font-bold tracking-wider uppercase', i === 0 && 'pl-5', i >= 4 && 'text-right', i === 6 && 'pr-5')}
+                      >
+                        {h}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {detail.map(({ e, g }) => {
+                    const cat = categoryOf(e.category)
+                    const mine = myShareOf(e, me)
+                    return (
+                      <TableRow key={e.id} className="cursor-pointer" onClick={() => openExpense({ groupId: g.id, expense: e })}>
+                        <TableCell className="pl-5 whitespace-nowrap text-muted-foreground">{relativeDay(e.date)}</TableCell>
+                        <TableCell>
+                          <span className="flex items-center gap-3">
+                            <span className={cn('grid size-9 shrink-0 place-items-center rounded-full', cat.tint)}>
+                              <cat.icon className="size-4" />
+                            </span>
+                            <span className="flex flex-col">
+                              <span className="font-semibold">{e.title}</span>
+                              <span className="text-xs text-muted-foreground">{cat.label}</span>
+                            </span>
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className="rounded-full bg-muted text-foreground">
+                            {g.name}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <span className="flex items-center gap-2">
+                            <UserAvatar id={e.paidBy} name={g.members[e.paidBy]?.name} className="size-6 text-[9px]" />
+                            {e.paidBy === me ? 'Toi' : (g.members[e.paidBy]?.name ?? '?')}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">{formatMoney(e.amount, g.currency)}</TableCell>
+                        <TableCell className="text-right">
+                          <strong>{formatMoney(mine, g.currency)}</strong>
+                          <span className="block text-xs text-muted-foreground">{Math.round((mine / e.amount) * 100)} %</span>
+                        </TableCell>
+                        <TableCell className="pr-5 text-right">
+                          {e.paidBy === me ? <strong>{formatMoney(e.amount, g.currency)}</strong> : <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+                <TableFooter className="bg-muted/60">
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={5} className="pl-5 font-semibold">
+                      Total
+                    </TableCell>
+                    <TableCell className="text-right font-bold">{formatMoney(detailShare)}</TableCell>
+                    <TableCell className="pr-5 text-right font-bold">{formatMoney(detailPaid)}</TableCell>
+                  </TableRow>
+                </TableFooter>
+              </Table>
+            </div>
+          </>
+        )}
+
+        <Button asChild variant="action" className="-ml-4 self-start">
+          <Link to={`/history?month=${month}`}>
+            Ouvrir dans l'historique <ChevronRight />
+          </Link>
+        </Button>
       </Card>
     </Page>
   )
@@ -272,6 +404,8 @@ function BarRow({
   share,
   color,
   hint,
+  active,
+  onClick,
 }: {
   label: ReactNode
   value: number
@@ -279,9 +413,21 @@ function BarRow({
   share: number
   color: string
   hint?: string
+  /** true: this row is the filter; false: another row is; undefined: no filter. */
+  active?: boolean
+  onClick?: () => void
 }) {
   return (
-    <div className="flex flex-col gap-1.5" title={hint}>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={!!active}
+      className={cn(
+        '-mx-2 flex flex-col gap-1.5 rounded-xl px-2 py-1.5 text-left transition hover:bg-muted/70',
+        active && 'bg-muted/70 ring-2 ring-primary/40',
+        active === false && 'opacity-45 hover:opacity-100',
+      )}
+    >
       <div className="flex items-center justify-between gap-3 text-sm">
         <span className="min-w-0 truncate font-medium">{label}</span>
         <span className="flex shrink-0 items-baseline gap-2">
@@ -293,15 +439,7 @@ function BarRow({
         <div className="h-full rounded-full" style={{ width: `${Math.max((value / max) * 100, 2)}%`, background: color }} />
       </div>
       {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
-    </div>
-  )
-}
-
-function GroupLabel({ group }: { group: Group }) {
-  return (
-    <Link to={`/g/${group.id}`} className="hover:text-primary hover:underline">
-      {group.name}
-    </Link>
+    </button>
   )
 }
 
