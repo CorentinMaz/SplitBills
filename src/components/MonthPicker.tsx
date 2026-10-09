@@ -33,15 +33,14 @@ export default function MonthPicker({
         <ChevronLeft />
       </Button>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="h-10 gap-2 border-0 bg-transparent px-2 font-semibold capitalize shadow-none hover:text-primary focus-visible:ring-0 [&>svg:last-child]:hidden">
+        <SelectTrigger className="h-10 gap-2 border-0 bg-transparent px-2 font-semibold shadow-none first-letter:uppercase hover:text-primary focus-visible:ring-0 [&>svg:last-child]:hidden">
           <CalendarDays className="size-4 text-primary" />
           <SelectValue />
         </SelectTrigger>
         <SelectContent align="center">
           {months.map((m) => (
-            <SelectItem key={m} value={m} className="capitalize">
-              {monthName(m)}
-              {m === current && ' (ce mois-ci)'}
+            <SelectItem key={m} value={m}>
+              <span className="first-letter:uppercase">{monthName(m)}</span>
             </SelectItem>
           ))}
         </SelectContent>

@@ -1,5 +1,5 @@
 import { signOut } from 'firebase/auth'
-import { History, Home, LogOut, Plus, User, Users, Wallet, type LucideIcon } from 'lucide-react'
+import { ChartColumn, History, Home, LogOut, Plus, User, Users, Wallet, type LucideIcon } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { displayName, useUser } from '@/auth'
@@ -26,6 +26,7 @@ const TABS: { to: string; icon: LucideIcon; label: string }[] = [
   { to: '/', icon: Home, label: 'Accueil' },
   { to: '/groups', icon: Users, label: 'Groupes' },
   { to: '/history', icon: History, label: 'Historique' },
+  { to: '/stats', icon: ChartColumn, label: 'Suivi' },
   { to: '/profile', icon: User, label: 'Profil' },
 ]
 

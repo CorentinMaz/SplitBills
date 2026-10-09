@@ -10,6 +10,7 @@ import Home from '@/pages/Home'
 import Join from '@/pages/Join'
 import Login from '@/pages/Login'
 import Profile from '@/pages/Profile'
+import Stats from '@/pages/Stats'
 
 function RequireAuth() {
   const { user, loading } = useAuth()
@@ -29,6 +30,7 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/groups" element={<Groups />} />
           <Route path="/history" element={<History />} />
+          <Route path="/stats" element={<Stats />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/g/:groupId" element={<GroupPage />} />
           <Route path="/g/:groupId/settings" element={<GroupSettings />} />

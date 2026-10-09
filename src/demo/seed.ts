@@ -70,6 +70,27 @@ function payment(amount: number, paidBy: string, to: string, days: number): Paym
   return { id: `seed-${n}`, kind: 'payment', amount, paidBy, to, date: ago(days), createdBy: paidBy, createdAt: n }
 }
 
+/** Six earlier months of couple life, so the Suivi chart has a history. Amounts vary a bit each month. */
+function olderMonths(): Entry[] {
+  const out: Entry[] = []
+  for (let k = 2; k <= 7; k++) {
+    const base = k * 30
+    const wiggle = 1 + ((k * 37) % 9) / 20 - 0.2
+    out.push(
+      expense('Loyer', 'home', 1650, DEMO_UID, base + 8, COUPLE),
+      expense('Hydro-Québec', 'bills', round(88 * wiggle), 'lea', base + 3, COUPLE),
+      expense('IGA', 'groceries', round(135 * wiggle), 'lea', base + 12, COUPLE),
+      expense('Costco', 'groceries', round(190 * wiggle), DEMO_UID, base + 20, COUPLE),
+      expense(k % 2 ? 'Resto thaï' : 'Pizzeria Libretto', 'food', round(62 * wiggle), DEMO_UID, base + 15, { [DEMO_UID]: 50, lea: 50 }),
+      payment(round(300 * wiggle), 'lea', DEMO_UID, base + 1),
+    )
+    if (k === 4) out.push(expense('Billets avion Paris', 'travel', 1840, DEMO_UID, base + 18, { [DEMO_UID]: 50, lea: 50 }))
+  }
+  return out
+}
+
+const round = (n: number) => Math.round(n * 100) / 100
+
 export function seedEntries(): Record<string, Entry[]> {
   const sort = (list: Entry[]) => list.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt)
   return {
@@ -86,6 +107,7 @@ export function seedEntries(): Record<string, Entry[]> {
       expense('Cinéma Banque Scotia', 'fun', 36, 'lea', 2, { [DEMO_UID]: 50, lea: 50 }),
       expense('Costco', 'groceries', 214.9, DEMO_UID, 1, COUPLE),
       expense('Station Shell', 'transport', 71.2, 'lea', 0, COUPLE),
+      ...olderMonths(),
     ]),
     gaspesie: sort([
       expense('Location de voiture', 'transport', 420, 'max', 25, TRIP),
