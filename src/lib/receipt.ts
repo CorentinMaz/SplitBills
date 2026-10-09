@@ -1,3 +1,6 @@
+/** An OCR line with what Tesseract knows about it: big, confident text is likely the store name. */
+export type OcrLine = { text: string; confidence: number; height: number }
+
 export type ParsedReceipt = {
   merchant?: string
   total?: number
@@ -38,10 +41,110 @@ function fmt(y: number, m: number, d: number) {
   return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
 }
 
-export function parseReceipt(text: string): ParsedReceipt {
+// Logos are often images, so the store name is missing or garbled; its name or website usually shows up elsewhere.
+const MERCHANTS: [string, RegExp][] = [
+  ['Super C', /\bsuper ?c\b/],
+  ['Maxi', /\bmaxi\b(?! ?mum)/],
+  ['IGA', /\biga\b/],
+  ['Metro', /\bmetro\b/],
+  ['Provigo', /\bprovigo\b/],
+  ['Loblaws', /\bloblaws?\b/],
+  ['Costco', /\bcostco\b/],
+  ['Walmart', /\bwal ?mart\b/],
+  ['Dollarama', /\bdollarama\b/],
+  ['Adonis', /\badonis\b/],
+  ['Avril', /\bavril (?:supermarche|sante)\b/],
+  ['Marché Tau', /\bmarche tau\b/],
+  ['Rachelle-Béry', /\brachelle ?bery\b/],
+  ['Jean Coutu', /\bjean ?coutu\b/],
+  ['Pharmaprix', /\bpharmaprix\b/],
+  ['Shoppers Drug Mart', /\bshoppers drug mart\b/],
+  ['Uniprix', /\buniprix\b/],
+  ['Familiprix', /\bfamiliprix\b/],
+  ['Brunet', /\bbrunet\b/],
+  ['Proxim', /\bproxim\b/],
+  ['SAQ', /\bsaq\b/],
+  ['Couche-Tard', /\bcouche ?tard\b/],
+  ['Canadian Tire', /\bcanadian ?tire\b/],
+  ['Home Depot', /\bhome ?depot\b/],
+  ['Rona', /\brona\b/],
+  ['Réno-Dépôt', /\breno ?depot\b/],
+  ['BMR', /\bbmr\b/],
+  ['Bureau en Gros', /\bbureau en gros\b/],
+  ['IKEA', /\bikea\b/],
+  ['Winners', /\bwinners\b/],
+  ['Simons', /\bsimons\b/],
+  ['Sports Experts', /\bsports? experts\b/],
+  ['Best Buy', /\bbest ?buy\b/],
+  ['Tigre Géant', /\btigre geant\b|\bgiant tiger\b/],
+  ['Tim Hortons', /\btim ?hortons?\b/],
+  ['Starbucks', /\bstarbucks\b/],
+  ["McDonald's", /\bmc ?donald ?s?\b/],
+  ['St-Hubert', /\bst ?hubert\b/],
+  ['Subway', /\bsubway\b/],
+  ['A&W', /\ba ?& ?w\b|\ba ?et ?w\b/],
+  ['Pizza Pizza', /\bpizza pizza\b/],
+  ['Petro-Canada', /\bpetro ?canada\b/],
+  ['Ultramar', /\bultramar\b/],
+  ['Esso', /\besso\b/],
+  ['Shell', /\bshell\b/],
+  ['Pétro-T', /\bpetro ?t\b/],
+]
+
+/** Lowercase, no accents, punctuation as spaces: "SUPER-C.ca" -> "super c ca". */
+function normalize(text: string) {
+  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9&]+/g, ' ')
+}
+
+function knownMerchant(text: string) {
+  const norm = normalize(text)
+  let best: { name: string; at: number } | undefined
+  for (const [name, re] of MERCHANTS) {
+    const at = norm.search(re)
+    if (at >= 0 && (!best || at < best.at)) best = { name, at }
+  }
+  return best?.name
+}
+
+const NOT_MERCHANT = /\b(bienvenue|welcome|merci|thank|facture|re[cç]u|receipt|caissi|cashier|transaction|client|magasin|store|tel|t[ée]l[ée]phone|www|http|rue|street|avenue|boul|blvd|chemin|qc|quebec|québec)\b/i
+
+/** A line that reads like a name: mostly letters, a real word, no prices, dates or addresses. */
+function looksLikeName(line: string) {
+  const chars = line.replace(/\s/g, '')
+  const letters = (chars.match(/[a-zà-ÿ]/gi) ?? []).length
+  return (
+    chars.length >= 3 &&
+    letters / chars.length >= 0.7 &&
+    /[a-zà-ÿ]{3,}/i.test(line) &&
+    amountsIn(line).length === 0 &&
+    !/\d{3}[-. ]\d{4}/.test(line) &&
+    !NOT_MERCHANT.test(line)
+  )
+}
+
+/** "SUPER MARCHE BOB" -> "Super Marche Bob"; mixed case is left as typed. */
+function tidy(name: string) {
+  const clean = name.replace(/[^\p{L}\p{N}&' -]/gu, '').replace(/\s+/g, ' ').trim()
+  if (clean !== clean.toUpperCase()) return clean
+  return clean.toLowerCase().replace(/(^|[\s-])\p{L}/gu, (c) => c.toUpperCase())
+}
+
+function guessMerchant(lines: string[], ocrLines?: OcrLine[]) {
+  // Only the header: past that it's items. Low-confidence lines are usually a logo read as noise.
+  if (ocrLines?.length) {
+    const header = ocrLines.slice(0, 8).filter((l) => l.confidence >= 60 && looksLikeName(l.text))
+    // The store name is usually printed bigger than the rest.
+    const biggest = header.reduce<OcrLine | undefined>((a, l) => (!a || l.height > a.height * 1.15 ? l : a), undefined)
+    if (biggest) return tidy(biggest.text)
+  }
+  const line = lines.slice(0, 8).find(looksLikeName)
+  return line && tidy(line)
+}
+
+export function parseReceipt(text: string, ocrLines?: OcrLine[]): ParsedReceipt {
   const lines = text.split('\n').map((l) => l.trim()).filter(Boolean)
 
-  const merchant = lines.find((l) => /[a-zà-ÿ]{3,}/i.test(l) && amountsIn(l).length === 0)
+  const merchant = knownMerchant(text) ?? guessMerchant(lines, ocrLines)
 
   let total: number | undefined
   for (let i = lines.length - 1; i >= 0; i--) {

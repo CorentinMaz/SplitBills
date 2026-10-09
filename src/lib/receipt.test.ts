@@ -13,7 +13,7 @@ TPS               0,52
 TVQ               1,05
 TOTAL            12,05
 VISA             12,05`
-    expect(parseReceipt(text)).toEqual({ merchant: 'IGA EXTRA', total: 12.05, date: '2026-10-08' })
+    expect(parseReceipt(text)).toEqual({ merchant: 'IGA', total: 12.05, date: '2026-10-08' })
   })
 
   it('handles thousands separators and amount on next line', () => {
@@ -26,5 +26,30 @@ Montant total
 
   it('falls back to the largest amount', () => {
     expect(parseReceipt('Cafe\n4.50\n2.25').total).toBe(4.5)
+  })
+
+  it('finds a known store even when the logo is read as noise', () => {
+    const text = `Ee Ms rer —
+~ 2 . ' ,
+1200 BOUL. ST-JOSEPH
+LAIT 2%           5,79
+TOTAL            47,70
+MERCI DE MAGASINER CHEZ SUPER C
+superc.ca`
+    expect(parseReceipt(text)).toMatchObject({ merchant: 'Super C', total: 47.7 })
+  })
+
+  it('picks the biggest confident header line for unknown stores', () => {
+    const text = 'Ee Ms rer\nBoulangerie Ma Mie\nBienvenue\nTOTAL 8,50'
+    const lines = [
+      { text: 'Ee Ms rer', confidence: 30, height: 60 },
+      { text: 'Boulangerie Ma Mie', confidence: 88, height: 40 },
+      { text: 'Bienvenue', confidence: 92, height: 22 },
+    ]
+    expect(parseReceipt(text, lines).merchant).toBe('Boulangerie Ma Mie')
+  })
+
+  it('tidies an all-caps name', () => {
+    expect(parseReceipt('FROMAGERIE DU MARCHE\nTOTAL 12,00').merchant).toBe('Fromagerie Du Marche')
   })
 })

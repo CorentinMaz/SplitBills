@@ -1,4 +1,4 @@
-import { parseReceipt } from './receipt'
+import { parseReceipt, type OcrLine } from './receipt'
 
 /** Downscale and grayscale before OCR: much faster on phones and usually more accurate. */
 async function prepare(file: File): Promise<HTMLCanvasElement> {
@@ -21,8 +21,12 @@ export async function scanReceipt(file: File, onProgress?: (p: number) => void) 
     },
   })
   try {
-    const { data } = await worker.recognize(await prepare(file))
-    return { text: data.text, ...parseReceipt(data.text) }
+    const { data } = await worker.recognize(await prepare(file), {}, { text: true, blocks: true })
+    const lines: OcrLine[] = (data.blocks ?? [])
+      .flatMap((b) => b.paragraphs.flatMap((p) => p.lines))
+      .map((l) => ({ text: l.text.trim(), confidence: l.confidence, height: l.bbox.y1 - l.bbox.y0 }))
+      .filter((l) => l.text)
+    return { text: data.text, ...parseReceipt(data.text, lines) }
   } finally {
     await worker.terminate()
   }
