@@ -3,6 +3,7 @@ import {
   GoogleAuthProvider,
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
   updateProfile,
 } from 'firebase/auth'
 import { ArrowRight, Camera, House, Lock, type LucideIcon, Mail, Percent, ShoppingCart, User, Users } from 'lucide-react'
@@ -134,7 +135,7 @@ export default function Login() {
             variant="secondary"
             className="h-13 rounded-full bg-muted text-base text-foreground"
             disabled={busy}
-            onClick={() => run(() => signInWithPopup(auth, new GoogleAuthProvider()))}
+            onClick={() => run(signInWithGoogle)}
           >
           <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden>
             <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
@@ -213,11 +214,25 @@ function Field({ id, label, icon: Icon, children }: { id: string; label: string;
   )
 }
 
+/** Popup first: a redirect breaks when the app and the auth domain differ. Some phones block popups, so fall back. */
+async function signInWithGoogle() {
+  const provider = new GoogleAuthProvider()
+  try {
+    await signInWithPopup(auth, provider)
+  } catch (e) {
+    const code = (e as { code?: string }).code ?? ''
+    if (code.includes('popup-blocked') || code.includes('operation-not-supported')) await signInWithRedirect(auth, provider)
+    else throw e
+  }
+}
+
 function messageFor(e: unknown) {
   const code = (e as { code?: string }).code ?? ''
   if (code.includes('invalid-credential') || code.includes('wrong-password')) return 'Courriel ou mot de passe invalide.'
   if (code.includes('email-already-in-use')) return 'Ce courriel a déjà un compte.'
   if (code.includes('weak-password')) return 'Mot de passe trop faible (6 caractères min).'
-  if (code.includes('popup-closed')) return 'Connexion annulée.'
-  return 'Une erreur est survenue. Réessaie.'
+  if (code.includes('popup-closed') || code.includes('cancelled-popup')) return 'Connexion annulée.'
+  if (code.includes('unauthorized-domain')) return `Ce domaine (${window.location.hostname}) n'est pas autorisé dans Firebase Authentication.`
+  if (code.includes('network-request-failed')) return 'Pas de connexion réseau.'
+  return `Une erreur est survenue. Réessaie.${code ? ` (${code})` : ''}`
 }
