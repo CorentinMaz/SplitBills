@@ -39,27 +39,6 @@ npx firebase-tools deploy --project <projet>   # hosting + règles Firestore
 
 Ajoute le domaine de hosting dans *Authentication → Settings → Authorized domains* s'il n'y est pas.
 
-## Tester sur le téléphone avant la mise en ligne
-
-**Sur le Wi-Fi local** (rapide, sans installation PWA) :
-
-```sh
-npm run dev:host        # vraies données Firebase
-npm run demo:host       # données de test
-```
-
-Le terminal affiche un QR code : scanne-le avec l'appareil photo du téléphone (même Wi-Fi). La connexion Google exige d'ajouter l'IP dans
-*Authentication → Settings → Authorized domains*. Email / mot de passe marche tel quel.
-
-**Lien HTTPS temporaire** (PWA installable, comme en prod) :
-
-```sh
-npm run build
-npx firebase-tools hosting:channel:deploy test --expires 7d --project <projet>
-```
-
-Le lien `…--test-xxxx.web.app` expire tout seul. Ajoute son domaine aux *Authorized domains* pour Google.
-
 ## Installer sur le téléphone
 
 Ouvre l'URL déployée puis :
