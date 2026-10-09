@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react'
 import path from 'node:path'
 import { defineConfig, type Plugin } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { qrcode } from 'vite-plugin-qrcode'
 
 // `npm run demo`: swap Firebase-backed modules for the in-memory ones in src/demo.
 const DEMO_SWAPS: Record<string, string> = {
@@ -35,6 +36,8 @@ export default defineConfig(({ mode }) => ({
     mode === 'demo' && demoMode(),
     react(),
     tailwindcss(),
+    // Prints a QR code of the network URL with `--host`, to open the app on a phone.
+    qrcode(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],

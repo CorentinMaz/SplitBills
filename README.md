@@ -44,10 +44,11 @@ Ajoute le domaine de hosting dans *Authentication → Settings → Authorized do
 **Sur le Wi-Fi local** (rapide, sans installation PWA) :
 
 ```sh
-npm run dev:host        # affiche une URL Network, ex. http://10.0.0.129:5173
+npm run dev:host        # vraies données Firebase
+npm run demo:host       # données de test
 ```
 
-Ouvre cette URL sur le téléphone (même Wi-Fi). La connexion Google exige d'ajouter l'IP dans
+Le terminal affiche un QR code : scanne-le avec l'appareil photo du téléphone (même Wi-Fi). La connexion Google exige d'ajouter l'IP dans
 *Authentication → Settings → Authorized domains*. Email / mot de passe marche tel quel.
 
 **Lien HTTPS temporaire** (PWA installable, comme en prod) :
@@ -75,6 +76,7 @@ Le lien d'invitation est `/join/{groupId}` : l'id du groupe sert de secret.
 ## Scripts
 
 - `npm run dev` — serveur local
+- `npm run dev:host` / `npm run demo:host` — idem, accessible depuis le téléphone via un QR code
 - `npm run demo` — l'app avec des données de test en mémoire, sans Firebase (rien n'est sauvegardé)
 - `npm test` — tests (soldes, parsing de tickets)
 - `npm run build` — build de prod
