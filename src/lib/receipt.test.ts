@@ -52,4 +52,30 @@ superc.ca`
   it('tidies an all-caps name', () => {
     expect(parseReceipt('FROMAGERIE DU MARCHE\nTOTAL 12,00').merchant).toBe('Fromagerie Du Marche')
   })
+
+  it('ignores savings, tax totals and points around the real total', () => {
+    const text = `SUPER C
+POULET           12,99
+FROMAGE           8,49
+RABAIS           -2,00
+SOUS-TOTAL       45,30
+TPS               0,80
+TVQ               1,60
+TOTAL DES TAXES   2,40
+TOTAL            47,70
+DEBIT            47,70
+ECONOMIES TOTALES 6,25
+TOTAL POINTS     150,00`
+    expect(parseReceipt(text).total).toBe(47.7)
+  })
+
+  it('trusts subtotal plus taxes when the TOTAL line is misread', () => {
+    const text = `SOUS-TOTAL 45,30
+TPS 0,80
+TVQ 1,60
+T0TAL 47,70
+MONTANT DU 2,30
+INTERAC 47,70`
+    expect(parseReceipt(text).total).toBe(47.7)
+  })
 })

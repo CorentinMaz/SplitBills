@@ -9,7 +9,12 @@ export type ParsedReceipt = {
 
 const AMOUNT = /(\d{1,5}(?:[ ,.]\d{3})*[.,]\d{2})(?!\d)/g
 const TOTAL_WORDS = /\b(total|montant|a payer|à payer|amount due|balance due|grand total)\b/i
-const NOT_TOTAL_WORDS = /\b(sous[- ]?total|sub[- ]?total|tps|tvq|tvh|gst|qst|hst|tax|taxe|rabais|economie|économie|change|monnaie|remise)\b/i
+// Stems, not words: "ÉCONOMIES TOTALES", "TOTAL DES TAXES", "TOTAL POINTS" must not win.
+const NOT_TOTAL_WORDS =
+  /sous[- ]?total|sub[- ]?total|\b(tps|tvq|tvh|gst|qst|hst)\b|tax|rabais|[ée]conomi|[ée]pargn|\bsav(ed|ings?)\b|\bchange\b|monnaie|remis|\bpoints?\b|articles?|\bitems?\b/i
+const SUBTOTAL_WORDS = /sous[- ]?total|sub[- ]?total/i
+const TAX_WORDS = /\b(tps|tvq|tvh|gst|qst|hst|taxes?)\b/i
+const PAYMENT_WORDS = /\b(visa|master ?card|amex|d[ée]bit|interac|comptant|cash|paiement|payment|cr[ée]dit|carte)\b/i
 
 function toNumber(raw: string) {
   // Last separator is the decimal one; anything before it is a thousands separator.
@@ -141,26 +146,46 @@ function guessMerchant(lines: string[], ocrLines?: OcrLine[]) {
   return line && tidy(line)
 }
 
+/** Last amount on the line, or on the next one: OCR often splits label and amount. */
+function amountAt(lines: string[], i: number) {
+  const here = amountsIn(lines[i])
+  const amounts = here.length ? here : amountsIn(lines[i + 1] ?? '')
+  return amounts.at(-1)
+}
+
+function amountsWhere(lines: string[], test: (line: string) => boolean) {
+  return lines.flatMap((l, i) => (test(l) ? [amountAt(lines, i)] : [])).filter((n): n is number => n !== undefined)
+}
+
+const near = (a: number, b: number) => Math.abs(a - b) < 0.015
+
+function findTotal(lines: string[]) {
+  const all = lines.flatMap(amountsIn)
+  if (!all.length) return undefined
+
+  // Best proof: subtotal + taxes, when that sum is printed somewhere.
+  const subtotal = amountsWhere(lines, (l) => SUBTOTAL_WORDS.test(l)).at(-1)
+  if (subtotal !== undefined) {
+    const taxes = amountsWhere(lines, (l) => TAX_WORDS.test(l) && !/total/i.test(l))
+    const expected = subtotal + taxes.reduce((a, b) => a + b, 0)
+    const match = all.find((n) => near(n, expected))
+    if (match !== undefined) return match
+  }
+
+  // Else a "TOTAL" amount, preferring the one the card or cash line repeats.
+  const labelled = amountsWhere(lines, (l) => TOTAL_WORDS.test(l) && !NOT_TOTAL_WORDS.test(l))
+  const paid = amountsWhere(lines, (l) => PAYMENT_WORDS.test(l))
+  const confirmed = labelled.find((n) => paid.some((p) => near(p, n)))
+  if (confirmed !== undefined) return confirmed
+  if (labelled.length) return labelled.at(-1)
+  return Math.max(...all)
+}
+
 export function parseReceipt(text: string, ocrLines?: OcrLine[]): ParsedReceipt {
   const lines = text.split('\n').map((l) => l.trim()).filter(Boolean)
 
   const merchant = knownMerchant(text) ?? guessMerchant(lines, ocrLines)
 
-  let total: number | undefined
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const line = lines[i]
-    if (!TOTAL_WORDS.test(line) || NOT_TOTAL_WORDS.test(line)) continue
-    // The amount is sometimes on the next line in OCR output.
-    const amounts = amountsIn(line).length ? amountsIn(line) : amountsIn(lines[i + 1] ?? '')
-    if (amounts.length) {
-      total = amounts[amounts.length - 1]
-      break
-    }
-  }
-  if (total === undefined) {
-    const all = lines.flatMap(amountsIn)
-    if (all.length) total = Math.max(...all)
-  }
-
+  const total = findTotal(lines)
   return { merchant, total, date: parseDate(text) }
 }
