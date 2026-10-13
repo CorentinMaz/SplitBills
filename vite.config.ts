@@ -12,6 +12,7 @@ const DEMO_SWAPS: Record<string, string> = {
   'src/firebase.ts': 'src/demo/firebase.ts',
   'src/data/groups.ts': 'src/demo/groups.ts',
   'src/data/entries.ts': 'src/demo/entries.ts',
+  'src/data/push.ts': 'src/demo/push.ts',
 }
 
 function demoMode(): Plugin {
@@ -56,16 +57,10 @@ export default defineConfig(({ mode }) => ({
           { src: 'pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
-      workbox: {
-        // Tesseract data and Google Fonts load at runtime; cache them for offline use.
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/(cdn\.jsdelivr\.net|tessdata\.projectnaptha\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)\//,
-            handler: 'CacheFirst',
-            options: { cacheName: 'cdn-assets', expiration: { maxEntries: 40 } },
-          },
-        ],
-      },
+      // Custom worker (src/sw.ts) so it can also receive push notifications.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
     }),
   ],
   resolve: {

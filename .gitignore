@@ -26,3 +26,4 @@ dist-ssr
 .env
 dev-dist
 .firebase
+.bot-test.json

@@ -39,6 +39,27 @@ npx firebase-tools deploy --project <projet>   # hosting + règles Firestore
 
 Ajoute le domaine de hosting dans *Authentication → Settings → Authorized domains* s'il n'y est pas.
 
+## Notifications
+
+Les membres d'un groupe reçoivent une notification quand quelqu'un y ajoute une dépense ou un remboursement.
+L'envoi passe par un Cloudflare Worker (`worker/`), sur le plan gratuit : le projet Firebase reste sur Spark et rien ne peut être facturé.
+Après chaque ajout, l'app appelle le worker avec le jeton Firebase de l'utilisateur ; le worker vérifie qu'il vient de créer l'entrée, puis envoie via Firebase Cloud Messaging.
+
+1. *Project settings → Cloud Messaging → Web Push certificates* : génère une paire de clés et mets-la dans `VITE_FIREBASE_VAPID_KEY`.
+2. *Project settings → Service accounts* : *Generate new private key* (fichier JSON, à garder hors du dépôt).
+3. Déploie le worker :
+   ```sh
+   cd worker && npm install
+   npx wrangler login
+   npx wrangler secret put FIREBASE_SERVICE_ACCOUNT < chemin/vers/la-cle.json
+   npm run deploy
+   ```
+4. Mets l'URL affichée dans `VITE_NOTIFY_URL`, puis rebuild et redéploie le hosting.
+5. Sur le téléphone : *Profil → Notifications*. Sur iPhone, il faut d'abord installer l'app sur l'écran d'accueil (iOS 16.4+).
+
+Les notifications ne marchent qu'avec le build (pas avec `npm run dev`, qui n'a pas de service worker).
+`node scripts/send-test-push.mjs <projet> <compte-google>` envoie une notification de test à tous les appareils inscrits.
+
 ## Installer sur le téléphone
 
 Ouvre l'URL déployée puis :
@@ -48,6 +69,7 @@ Ouvre l'URL déployée puis :
 ## Modèle de données
 
 - `groups/{id}` : `name`, `currency`, `memberIds[]`, `members{uid: {name, share}}`
+- `users/{uid}/pushTokens/{token}` : un document par appareil qui a activé les notifications
 - `groups/{id}/expenses/{id}` : dépense (`kind: 'expense'`, avec copie des `shares`) ou remboursement (`kind: 'payment'`)
 
 Le lien d'invitation est `/join/{groupId}` : l'id du groupe sert de secret.

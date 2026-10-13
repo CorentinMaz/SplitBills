@@ -19,6 +19,7 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from '@/components/ui/sidebar'
+import { usePushListener } from '@/data/push'
 import { auth } from '@/firebase'
 import { cn } from '@/lib/utils'
 
@@ -138,6 +139,7 @@ function MobileNav() {
 }
 
 export default function AppLayout() {
+  usePushListener(useUser().uid)
   return (
     <ExpenseDialogProvider>
       <SidebarProvider style={{ '--sidebar-width': '17rem' } as CSSProperties}>

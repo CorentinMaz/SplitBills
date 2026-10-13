@@ -1,0 +1,14 @@
+{
+  "name": "splitbills-notify",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "preview_urls": false,
+  "vars": {
+    "FIREBASE_PROJECT_ID": "split-40bad",
+    // Origins allowed to call the worker (the deployed app and local dev).
+    "ALLOWED_ORIGINS": "https://split-40bad.web.app,https://split-40bad.firebaseapp.com,http://localhost:5173"
+  }
+  // Secret, set with `npx wrangler secret put FIREBASE_SERVICE_ACCOUNT < key.json`:
+  // the JSON key of the Firebase Admin SDK service account.
+}

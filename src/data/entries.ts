@@ -2,6 +2,7 @@ import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, updateD
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { reportError } from '@/lib/errors'
+import { notifyMembers } from '@/lib/notify'
 
 // A permission error on expenses means the group was deleted or we left it: the group page redirects, no toast needed.
 const ignoreGone = (e: unknown) => (e as { code?: string }).code !== 'permission-denied' && reportError(e)
@@ -26,16 +27,20 @@ export function useEntries(groupId: string) {
   return entries
 }
 
-export function addExpense(groupId: string, data: Omit<Expense, 'id' | 'kind' | 'createdAt'>) {
-  return addDoc(entriesOf(groupId), { ...data, kind: 'expense', createdAt: Date.now() })
+export async function addExpense(groupId: string, data: Omit<Expense, 'id' | 'kind' | 'createdAt'>) {
+  const ref = await addDoc(entriesOf(groupId), { ...data, kind: 'expense', createdAt: Date.now() })
+  notifyMembers(groupId, ref.id)
+  return ref
 }
 
 export function updateExpense(groupId: string, id: string, data: Partial<Omit<Expense, 'id' | 'kind'>>) {
   return updateDoc(doc(entriesOf(groupId), id), data)
 }
 
-export function addPayment(groupId: string, data: Omit<Payment, 'id' | 'kind' | 'createdAt'>) {
-  return addDoc(entriesOf(groupId), { ...data, kind: 'payment', createdAt: Date.now() })
+export async function addPayment(groupId: string, data: Omit<Payment, 'id' | 'kind' | 'createdAt'>) {
+  const ref = await addDoc(entriesOf(groupId), { ...data, kind: 'payment', createdAt: Date.now() })
+  notifyMembers(groupId, ref.id)
+  return ref
 }
 
 export function deleteEntry(groupId: string, id: string) {

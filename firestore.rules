@@ -14,6 +14,11 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if signedIn();
       allow write: if signedIn() && request.auth.uid == uid;
+
+      // Push tokens of each device; only the Cloud Function (admin) reads other people's.
+      match /pushTokens/{token} {
+        allow read, write: if signedIn() && request.auth.uid == uid;
+      }
     }
 
     match /groups/{groupId} {

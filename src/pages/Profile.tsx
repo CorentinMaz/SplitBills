@@ -1,6 +1,6 @@
 import { sendPasswordResetEmail, signOut, updateProfile } from 'firebase/auth'
 import { doc, updateDoc } from 'firebase/firestore'
-import { BadgeCheck, ChevronRight, KeyRound, LogOut, Moon, Pencil, Users } from 'lucide-react'
+import { BadgeCheck, Bell, ChevronRight, KeyRound, LogOut, Moon, Pencil, Users } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { useAllEntries } from '@/data/entries'
 import { useGroups } from '@/data/groups'
+import { usePush, type PushStatus } from '@/data/push'
 import { auth, db } from '@/firebase'
 import { reportError } from '@/lib/errors'
 import { formatMoney, today } from '@/lib/money'
@@ -21,6 +22,15 @@ import { groupSummary, myShareOf } from '@/lib/stats'
 import { setTheme, useIsDark } from '@/lib/theme'
 
 const rowIcon = 'grid size-10 shrink-0 place-items-center rounded-full bg-muted'
+const PUSH_HINTS: Record<PushStatus, string> = {
+  loading: '…',
+  on: "Quand quelqu'un ajoute une dépense dans tes groupes.",
+  off: "Quand quelqu'un ajoute une dépense dans tes groupes.",
+  denied: 'Bloquées par le navigateur : autorise-les dans les réglages du site.',
+  'needs-install': "Ajoute d'abord l'app à l'écran d'accueil (Partager → Sur l'écran d'accueil).",
+  unsupported: 'Pas disponibles sur ce navigateur.',
+}
+
 const sinceFmt = new Intl.DateTimeFormat('fr-CA', { month: 'long', year: 'numeric' })
 
 export default function Profile() {
@@ -28,6 +38,7 @@ export default function Profile() {
   const groups = useGroups(user.uid)
   const byGroup = useAllEntries(groups)
   const dark = useIsDark()
+  const push = usePush(user.uid)
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(displayName(user))
   const [shownName, setShownName] = useState(displayName(user))
@@ -135,9 +146,9 @@ export default function Profile() {
           <Card className="border-0 shadow-soft">
             <CardHeader>
               <CardTitle className="text-lg">Préférences</CardTitle>
-              <CardDescription>Apparence de l'app sur cet appareil.</CardDescription>
+              <CardDescription>Réglages de l'app sur cet appareil.</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex flex-col gap-2">
               <label className="flex cursor-pointer items-center gap-3.5 rounded-xl bg-muted/50 p-3">
                 <span className={rowIcon}>
                   <Moon className="size-5" />
@@ -147,6 +158,20 @@ export default function Profile() {
                   <span className="text-xs text-muted-foreground">Le mode clair est utilisé par défaut.</span>
                 </span>
                 <Switch checked={dark} onCheckedChange={(on) => setTheme(on ? 'dark' : 'light')} />
+              </label>
+              <label className="flex cursor-pointer items-center gap-3.5 rounded-xl bg-muted/50 p-3">
+                <span className={rowIcon}>
+                  <Bell className="size-5" />
+                </span>
+                <span className="flex flex-1 flex-col">
+                  <span className="font-medium">Notifications</span>
+                  <span className="text-xs text-muted-foreground">{PUSH_HINTS[push.status]}</span>
+                </span>
+                <Switch
+                  checked={push.status === 'on'}
+                  disabled={push.status !== 'on' && push.status !== 'off'}
+                  onCheckedChange={(on) => (on ? push.enable() : push.disable())}
+                />
               </label>
             </CardContent>
           </Card>
