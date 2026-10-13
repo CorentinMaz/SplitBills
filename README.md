@@ -1,83 +1,85 @@
 # SplitBills
 
-Web app installable (PWA) pour partager les dépenses au prorata des revenus (ex. 70 / 30).
-React + Vite + Firebase (Auth, Firestore). Scan de tickets en local avec Tesseract.js.
+Installable web app (PWA) for splitting expenses in proportion to income (e.g. 70 / 30).
+React + Vite + Firebase (Auth, Firestore). Receipts are scanned on-device with Tesseract.js.
 
-## Captures
+## Screenshots
 
-![Accueil](docs/screenshots/dashboard.png)
+![Home](docs/screenshots/dashboard.png)
 
-| Groupe | Suivi |
+| Group | Insights |
 |---|---|
-| ![Groupe](docs/screenshots/group.png) | ![Suivi](docs/screenshots/stats.png) |
+| ![Group](docs/screenshots/group.png) | ![Insights](docs/screenshots/stats.png) |
 
-| Historique | Groupes |
+| History | Groups |
 |---|---|
-| ![Historique](docs/screenshots/history.png) | ![Groupes](docs/screenshots/groups.png) |
+| ![History](docs/screenshots/history.png) | ![Groups](docs/screenshots/groups.png) |
 
 ### Mobile
 
-| Accueil | Groupe | Nouvelle dépense | Suivi |
+| Home | Group | New expense | Insights |
 |---|---|---|---|
 | <img src="docs/screenshots/m-home.png" width="200"> | <img src="docs/screenshots/m-group.png" width="200"> | <img src="docs/screenshots/m-add.png" width="200"> | <img src="docs/screenshots/m-stats.png" width="200"> |
 
-## Mise en route
+## Getting started
 
-1. Firebase console : crée un projet, puis une **Web app** et copie sa config.
-2. Active **Authentication** → *Email/Password* et *Google*.
-3. Crée une base **Firestore** (mode production).
-4. `cp .env.example .env` puis remplis les valeurs.
+1. Firebase console: create a project, then a **Web app**, and copy its config.
+2. Enable **Authentication** → *Email/Password* and *Google*.
+3. Create a **Firestore** database (production mode).
+4. `cp .env.example .env` and fill in the values.
 5. `npm install && npm run dev`
 
-## Déployer (Firebase Hosting)
+## Deploy (Firebase Hosting)
 
 ```sh
 npx firebase-tools login
 npm run build
-npx firebase-tools deploy --project <projet>   # hosting + règles Firestore
+npx firebase-tools deploy --project <project>   # hosting + Firestore rules
 ```
 
-Ajoute le domaine de hosting dans *Authentication → Settings → Authorized domains* s'il n'y est pas.
+Add the hosting domain under *Authentication → Settings → Authorized domains* if it isn't there.
 
 ## Notifications
 
-Les membres d'un groupe reçoivent une notification quand quelqu'un y ajoute une dépense ou un remboursement.
-L'envoi passe par un Cloudflare Worker (`worker/`), sur le plan gratuit : le projet Firebase reste sur Spark et rien ne peut être facturé.
-Après chaque ajout, l'app appelle le worker avec le jeton Firebase de l'utilisateur ; le worker vérifie qu'il vient de créer l'entrée, puis envoie via Firebase Cloud Messaging.
+Group members get a notification when someone adds an expense or a payment to the group.
+Sending goes through a Cloudflare Worker (`worker/`) on the free plan: the Firebase project stays on Spark and nothing can be billed.
+After each new entry, the app calls the worker with the user's Firebase ID token; the worker checks that this user just created the entry, then sends through Firebase Cloud Messaging.
 
-1. *Project settings → Cloud Messaging → Web Push certificates* : génère une paire de clés et mets-la dans `VITE_FIREBASE_VAPID_KEY`.
-2. *Project settings → Service accounts* : *Generate new private key* (fichier JSON, à garder hors du dépôt).
-3. Déploie le worker :
+1. *Project settings → Cloud Messaging → Web Push certificates*: generate a key pair and put it in `VITE_FIREBASE_VAPID_KEY`.
+2. *Project settings → Service accounts*: *Generate new private key* (a JSON file, keep it out of the repo).
+3. Deploy the worker:
    ```sh
    cd worker && npm install
    npx wrangler login
-   npx wrangler secret put FIREBASE_SERVICE_ACCOUNT < chemin/vers/la-cle.json
+   npx wrangler secret put FIREBASE_SERVICE_ACCOUNT < path/to/key.json
    npm run deploy
    ```
-4. Mets l'URL affichée dans `VITE_NOTIFY_URL`, puis rebuild et redéploie le hosting.
-5. Sur le téléphone : *Profil → Notifications*. Sur iPhone, il faut d'abord installer l'app sur l'écran d'accueil (iOS 16.4+).
+4. Put the printed URL in `VITE_NOTIFY_URL`, then rebuild and redeploy hosting.
+5. On the phone: *Profil → Notifications*. On iPhone, the app must be added to the home screen first (iOS 16.4+).
 
-Les notifications ne marchent qu'avec le build (pas avec `npm run dev`, qui n'a pas de service worker).
-`node scripts/send-test-push.mjs <projet> <compte-google>` envoie une notification de test à tous les appareils inscrits.
+Notifications only work with the production build (not with `npm run dev`, which has no service worker).
 
-## Installer sur le téléphone
+- `node scripts/send-test-push.mjs <project> <google-account>` sends a sample notification to every registered device.
+- `node scripts/simulate-expense.mjs <groupId>` has a throwaway member add an expense, end to end; `--cleanup` removes it.
 
-Ouvre l'URL déployée puis :
-- **iPhone (Safari)** : Partager → *Sur l'écran d'accueil*
-- **Android (Chrome)** : menu ⋮ → *Installer l'application*
+## Install on a phone
 
-## Modèle de données
+Open the deployed URL, then:
+- **iPhone (Safari)**: Share → *Add to Home Screen*
+- **Android (Chrome)**: ⋮ menu → *Install app*
 
-- `groups/{id}` : `name`, `currency`, `memberIds[]`, `members{uid: {name, share}}`
-- `users/{uid}/pushTokens/{token}` : un document par appareil qui a activé les notifications
-- `groups/{id}/expenses/{id}` : dépense (`kind: 'expense'`, avec copie des `shares`) ou remboursement (`kind: 'payment'`)
+## Data model
 
-Le lien d'invitation est `/join/{groupId}` : l'id du groupe sert de secret.
+- `groups/{id}`: `name`, `currency`, `memberIds[]`, `members{uid: {name, share}}`
+- `groups/{id}/expenses/{id}`: an expense (`kind: 'expense'`, with a copy of the `shares`) or a payment (`kind: 'payment'`)
+- `users/{uid}/pushTokens/{token}`: one document per device with notifications turned on
+
+The invite link is `/join/{groupId}`: the group id acts as the secret.
 
 ## Scripts
 
-- `npm run dev` — serveur local
-- `npm run dev:host` / `npm run demo:host` — idem, accessible depuis le téléphone via un QR code
-- `npm run demo` — l'app avec des données de test en mémoire, sans Firebase (rien n'est sauvegardé)
-- `npm test` — tests (soldes, parsing de tickets)
-- `npm run build` — build de prod
+- `npm run dev` — local server
+- `npm run dev:host` / `npm run demo:host` — same, reachable from a phone through a QR code
+- `npm run demo` — the app with in-memory sample data, no Firebase (nothing is saved)
+- `npm test` — tests (balances, receipt parsing)
+- `npm run build` — production build
