@@ -18,6 +18,7 @@ import { useEntries } from '@/data/entries'
 import { leaveGroup, updateGroup, useGroup } from '@/data/groups'
 import { reportError } from '@/lib/errors'
 import { shareInvite } from '@/lib/invite'
+import { rebalanceShares } from '@/lib/shares'
 import { formatMoney } from '@/lib/money'
 import { groupSummary } from '@/lib/stats'
 import type { Entry, Group, Member } from '@/types'
@@ -47,13 +48,9 @@ function Settings({ group, entries }: { group: Group; entries: Entry[] }) {
   const dirty = name !== group.name || ids.some((id) => members[id]?.share !== group.members[id]?.share)
 
   function setShare(id: string, share: number) {
-    const next = { ...members, [id]: { ...members[id], share } }
-    // With two people a single slider is enough: the other one gets the rest.
-    if (ids.length === 2) {
-      const other = ids.find((x) => x !== id)!
-      next[other] = { ...next[other], share: 100 - share }
-    }
-    setMembers(next)
+    // The others absorb the change so the total always makes 100.
+    const shares = rebalanceShares(Object.fromEntries(ids.map((x) => [x, members[x]?.share ?? 0])), ids, id, share)
+    setMembers(Object.fromEntries(ids.map((x) => [x, { ...members[x], share: shares[x] }])))
   }
 
   function reset() {

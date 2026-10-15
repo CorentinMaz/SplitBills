@@ -17,6 +17,7 @@ import { CATEGORIES } from '@/lib/categories'
 import { reportError } from '@/lib/errors'
 import { formatMoney, round2, today } from '@/lib/money'
 import type { ParsedReceipt } from '@/lib/receipt'
+import { rebalanceShares } from '@/lib/shares'
 import { cn } from '@/lib/utils'
 import type { Expense, Group } from '@/types'
 
@@ -112,9 +113,9 @@ function Form({
   const [date, setDate] = useState(existing?.date ?? today())
   const [paidBy, setPaidBy] = useState(existing?.paidBy ?? user.uid)
   const [shares, setShares] = useState<Record<string, number>>(existing?.shares ?? defaultShares(group))
-  const [custom, setCustom] = useState(
-    !!existing && group.memberIds.some((id) => existing.shares[id] !== group.members[id]?.share),
-  )
+  const custom = group.memberIds.some((id) => shares[id] !== group.members[id]?.share)
+  // What is being typed in a share field: lets the user clear it without a 0 sneaking in front.
+  const [draft, setDraft] = useState<{ id: string; text: string } | null>(null)
   const [scanFile, setScanFile] = useState<File | null>(null)
   // Other totals read on the receipt, offered as one-tap fixes.
   const [readAmounts, setReadAmounts] = useState<number[]>([])
@@ -130,7 +131,6 @@ function Form({
     if (!g) return
     setGroup(g)
     setShares(defaultShares(g))
-    setCustom(false)
     if (!g.memberIds.includes(paidBy)) setPaidBy(user.uid)
   }
 
@@ -142,7 +142,7 @@ function Form({
     setReadAmounts(r.amounts)
     if (r.total !== undefined) setAmount(r.total.toFixed(2))
     if (r.merchant && !title) setTitle(r.merchant)
-    if (r.date) setDate(r.date)
+    // The date read on the receipt is wrong too often: the expense keeps today's date (or what the user typed).
     if (r.total === undefined) setError('Total introuvable sur le ticket. Entre-le à la main.')
     else toast.success('Ticket lu', { description: 'Vérifie le montant avant d’enregistrer.' })
   }
@@ -325,17 +325,11 @@ function Form({
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <Label className={fieldLabel}>Pour qui ?</Label>
-            <Button
-              type="button"
-              variant="action"
-              className="-mr-4 h-7"
-              onClick={() => {
-                if (custom) setShares(defaultShares(group))
-                setCustom(!custom)
-              }}
-            >
-              {custom ? 'Par défaut' : 'Modifier'}
-            </Button>
+            {custom && (
+              <Button type="button" variant="action" className="-mr-4 h-7" onClick={() => setShares(defaultShares(group))}>
+                Par défaut
+              </Button>
+            )}
           </div>
           <div className="divide-y rounded-2xl bg-muted">
             {group.memberIds.map((id) => (
@@ -348,19 +342,20 @@ function Form({
                   )}
                 </span>
                 <span className="flex items-center gap-1.5 rounded-lg bg-card px-2.5 py-1.5 text-muted-foreground">
-                  {custom ? (
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
-                      max={100}
-                      value={shares[id] ?? 0}
-                      onChange={(e) => setShares({ ...shares, [id]: Number(e.target.value) })}
-                      className="w-[3.2ch] bg-transparent text-right font-semibold text-foreground outline-none"
-                    />
-                  ) : (
-                    <span className="w-[3.2ch] text-right font-semibold text-foreground">{shares[id] ?? 0}</span>
-                  )}
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={draft?.id === id ? draft.text : (shares[id] ?? 0)}
+                    onFocus={(e) => e.target.select()}
+                    onBlur={() => setDraft(null)}
+                    onChange={(e) => {
+                      let text = e.target.value.replace(/\D/g, '').slice(0, 3)
+                      if (Number(text) > 100) text = '100'
+                      setDraft({ id, text })
+                      setShares(rebalanceShares(shares, group.memberIds, id, Number(text)))
+                    }}
+                    className="w-[3.5ch] bg-transparent text-right font-semibold text-foreground outline-none"
+                  />
                   %
                 </span>
               </div>
