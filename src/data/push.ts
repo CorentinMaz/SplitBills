@@ -1,6 +1,7 @@
 import { deleteDoc, doc, setDoc } from 'firebase/firestore'
 import { deleteToken, getMessaging, getToken, isSupported, onMessage } from 'firebase/messaging'
 import { useCallback, useEffect, useState } from 'react'
+import { useGroups } from './groups'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { app, db } from '../firebase'
@@ -14,6 +15,8 @@ export type PushStatus = 'loading' | 'unsupported' | 'needs-install' | 'denied' 
 
 // The token this device registered, so we can tell "on" apart from "permission granted for another account".
 const TOKEN_KEY = 'push-token'
+// Set once the first-open prompt has been shown, so we never nag twice.
+const ASKED_KEY = 'push-asked'
 
 function storedToken() {
   try {
@@ -130,4 +133,32 @@ export function usePushListener(uid: string) {
       unsubscribe?.()
     }
   }, [uid, navigate])
+}
+
+/**
+ * Mounted once in the app shell: the first time someone who belongs to a group opens the app on a device
+ * where push is possible but off, offers to turn notifications on. Shown once per device; the Profile
+ * switch stays the way to change one's mind.
+ */
+export function usePushPrompt(uid: string) {
+  const groups = useGroups(uid)
+  const hasGroup = (groups?.length ?? 0) > 0
+  const { status, enable } = usePush(uid)
+
+  useEffect(() => {
+    if (!hasGroup || status !== 'off') return
+    try {
+      if (localStorage.getItem(ASKED_KEY)) return
+      localStorage.setItem(ASKED_KEY, '1')
+    } catch {
+      return
+    }
+    toast('Activer les notifications ?', {
+      description: "Pour savoir quand quelqu'un ajoute une dépense dans tes groupes.",
+      duration: 15_000,
+      // enable() must run straight from the tap: iOS refuses permission prompts that aren't user-initiated.
+      action: { label: 'Activer', onClick: () => void enable() },
+      cancel: { label: 'Plus tard', onClick: () => {} },
+    })
+  }, [hasGroup, status, enable])
 }

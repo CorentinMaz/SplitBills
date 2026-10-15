@@ -16,3 +16,5 @@ export function usePush(_uid: string) {
 }
 
 export function usePushListener(_uid: string) {}
+
+export function usePushPrompt(_uid: string) {}
