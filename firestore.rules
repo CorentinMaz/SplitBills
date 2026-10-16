@@ -45,6 +45,15 @@ service cloud.firestore {
       match /expenses/{expenseId} {
         allow read, create, update, delete: if isMember(groupId);
       }
+
+      // Photo of a receipt, one document per expense, kept apart so lists stay light.
+      match /receipts/{expenseId} {
+        allow read, delete: if isMember(groupId);
+        allow create, update: if isMember(groupId)
+          && request.resource.data.keys().hasOnly(['image', 'createdAt'])
+          && request.resource.data.image is string
+          && request.resource.data.image.size() < 800000;
+      }
     }
   }
 }

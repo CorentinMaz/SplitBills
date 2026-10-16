@@ -1,4 +1,4 @@
-import { Banknote } from 'lucide-react'
+import { Banknote, Receipt } from 'lucide-react'
 import { useOpenExpense } from '@/components/ExpenseDialog'
 import { Button } from '@/components/ui/button'
 import { categoryOf, TINTS } from '@/lib/categories'
@@ -64,7 +64,10 @@ export default function ExpenseRow({ entry: e, groupId, me, nameOf, currency, gr
           <cat.icon className="size-5" />
         </span>
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate text-[17px] font-semibold">{e.title}</span>
+          <span className="flex items-center gap-1.5 truncate text-[17px] font-semibold">
+            <span className="truncate">{e.title}</span>
+            {e.hasReceipt && <Receipt className="size-3.5 shrink-0 text-muted-foreground" aria-label="Ticket joint" />}
+          </span>
           <span className="text-sm text-muted-foreground">
             {where}
             {e.paidBy === me ? 'Payé par toi' : `Payé par ${nameOf(e.paidBy)}`} · {relativeDay(e.date)}

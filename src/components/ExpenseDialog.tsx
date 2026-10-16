@@ -1,8 +1,9 @@
-import { Camera, Check, Pencil, Receipt, Trash2 } from 'lucide-react'
+import { Camera, Check, Pencil, Receipt, Trash2, X } from 'lucide-react'
 import { createContext, useCallback, useContext, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { useUser } from '@/auth'
 import { ReceiptScanner } from '@/components/ReceiptScanner'
+import { ReceiptViewer } from '@/components/ReceiptViewer'
 import UserAvatar from '@/components/UserAvatar'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -10,7 +11,7 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } f
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { addExpense, deleteEntry, updateExpense } from '@/data/entries'
+import { addExpense, deleteEntry, removeReceipt, setReceipt, updateExpense, useReceipt } from '@/data/entries'
 import { useGroups } from '@/data/groups'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { CATEGORIES } from '@/lib/categories'
@@ -114,13 +115,16 @@ function Form({
   const [paidBy, setPaidBy] = useState(existing?.paidBy ?? user.uid)
   const [shares, setShares] = useState<Record<string, number>>(existing?.shares ?? defaultShares(group))
   const custom = group.memberIds.some((id) => shares[id] !== group.members[id]?.share)
-  // What is being typed in a share field: lets the user clear it without a 0 sneaking in front.
   const [draft, setDraft] = useState<{ id: string; text: string } | null>(null)
   const [scanFile, setScanFile] = useState<File | null>(null)
-  // Other totals read on the receipt, offered as one-tap fixes.
   const [readAmounts, setReadAmounts] = useState<number[]>([])
   const [error, setError] = useState<string | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
+  const savedReceipt = useReceipt(existing?.hasReceipt ? group.id : undefined, existing?.id)
+  const [receipt, setReceipt_] = useState<{ image: string } | 'removed' | null>(null)
+  const receiptImage = receipt === 'removed' ? null : (receipt?.image ?? savedReceipt ?? null)
+  const receiptLoading = receipt === null && !!existing?.hasReceipt && savedReceipt === undefined
+  const [viewing, setViewing] = useState(false)
 
   const shareTotal = Object.values(shares).reduce((a, b) => a + b, 0)
   const value = Number(amount.replace(',', '.'))
@@ -136,9 +140,10 @@ function Form({
 
   const closeScanner = useCallback(() => setScanFile(null), [])
 
-  function onScanned(r: ParsedReceipt) {
+  function onScanned(r: ParsedReceipt, image: string) {
     setScanFile(null)
     setError(null)
+    setReceipt_({ image })
     setReadAmounts(r.amounts)
     if (r.total !== undefined) setAmount(r.total.toFixed(2))
     if (r.merchant && !title) setTitle(r.merchant)
@@ -153,8 +158,11 @@ function Form({
     if (shareTotal !== 100) return setError(`La répartition fait ${shareTotal} %, elle doit faire 100 %.`)
     const data = { title: title.trim() || 'Dépense', category, amount: round2(value), date, paidBy, shares }
     try {
-      if (existing) await updateExpense(group.id, existing.id, data)
-      else await addExpense(group.id, { ...data, createdBy: user.uid })
+      let id = existing?.id
+      if (id) await updateExpense(group.id, id, data)
+      else id = (await addExpense(group.id, { ...data, createdBy: user.uid })).id
+      if (receipt === 'removed' && existing?.hasReceipt) await removeReceipt(group.id, id)
+      else if (receipt && receipt !== 'removed') await setReceipt(group.id, id, receipt.image)
       toast.success(existing ? 'Dépense modifiée' : 'Dépense ajoutée')
       onClose()
     } catch (err) {
@@ -229,15 +237,62 @@ function Form({
           onClose={closeScanner}
           onResult={onScanned}
         />
-        <Button
-          type="button"
-          variant="secondary"
-          className="h-12 rounded-full text-base"
-          onClick={() => fileInput.current?.click()}
-        >
-          <Camera />
-          Scanner un ticket
-        </Button>
+        {receiptImage || receiptLoading ? (
+          <div className="flex items-center gap-3 rounded-2xl bg-muted p-2.5 pr-3">
+            <button
+              type="button"
+              onClick={() => setViewing(true)}
+              disabled={!receiptImage}
+              className="h-20 w-16 shrink-0 overflow-hidden rounded-xl bg-white shadow-soft"
+              aria-label="Voir le ticket"
+            >
+              {receiptImage && <img src={receiptImage} alt="" className="h-full w-full object-cover object-top" />}
+            </button>
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="font-semibold">{receipt && receipt !== 'removed' ? 'Ticket scanné' : 'Ticket joint'}</span>
+              <Button
+                type="button"
+                variant="action"
+                className="-ml-3 h-7 w-fit"
+                disabled={!receiptImage}
+                onClick={() => setViewing(true)}
+              >
+                Voir le ticket
+              </Button>
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-9 rounded-full"
+              aria-label="Rescanner"
+              onClick={() => fileInput.current?.click()}
+            >
+              <Camera className="size-4.5" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-9 rounded-full text-muted-foreground"
+              aria-label="Retirer le ticket"
+              onClick={() => setReceipt_('removed')}
+            >
+              <X className="size-4.5" />
+            </Button>
+          </div>
+        ) : (
+          <Button
+            type="button"
+            variant="secondary"
+            className="h-12 rounded-full text-base"
+            onClick={() => fileInput.current?.click()}
+          >
+            <Camera />
+            Scanner un ticket
+          </Button>
+        )}
+        <ReceiptViewer image={viewing ? receiptImage : null} onClose={() => setViewing(false)} />
 
         <div className="grid gap-4 md:grid-cols-[1fr_220px]">
           <div className="flex flex-col gap-2">

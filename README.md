@@ -1,7 +1,7 @@
 # SplitBills
 
 Installable web app (PWA) for splitting expenses in proportion to income (e.g. 70 / 30).
-React + Vite + Firebase (Auth, Firestore). Receipts are scanned on-device with Tesseract.js.
+React + Vite + Firebase (Auth, Firestore). Receipts are scanned on-device with Tesseract.js, and the flattened photo is kept with the expense (as a small JPEG in its own Firestore document, so no Storage bucket is needed).
 
 ## Screenshots
 

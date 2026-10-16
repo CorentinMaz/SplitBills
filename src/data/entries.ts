@@ -1,4 +1,4 @@
-import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, updateDoc } from 'firebase/firestore'
+import { addDoc, collection, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, setDoc, updateDoc } from 'firebase/firestore'
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { reportError } from '@/lib/errors'
@@ -9,6 +9,7 @@ const ignoreGone = (e: unknown) => (e as { code?: string }).code !== 'permission
 import type { Entry, Expense, Group, Payment } from '../types'
 
 const entriesOf = (groupId: string) => collection(db, 'groups', groupId, 'expenses')
+const receiptOf = (groupId: string, expenseId: string) => doc(db, 'groups', groupId, 'receipts', expenseId)
 
 export function useEntries(groupId: string) {
   const [entries, setEntries] = useState<Entry[] | null>(null)
@@ -43,8 +44,39 @@ export async function addPayment(groupId: string, data: Omit<Payment, 'id' | 'ki
   return ref
 }
 
-export function deleteEntry(groupId: string, id: string) {
-  return deleteDoc(doc(entriesOf(groupId), id))
+export async function deleteEntry(groupId: string, id: string) {
+  await deleteDoc(doc(entriesOf(groupId), id))
+  deleteDoc(receiptOf(groupId, id)).catch(() => {})
+}
+
+/** Stores the receipt photo (a JPEG data URL) of an expense and flags the expense. */
+export async function setReceipt(groupId: string, expenseId: string, image: string) {
+  await setDoc(receiptOf(groupId, expenseId), { image, createdAt: Date.now() })
+  await updateDoc(doc(entriesOf(groupId), expenseId), { hasReceipt: true })
+}
+
+export async function removeReceipt(groupId: string, expenseId: string) {
+  await updateDoc(doc(entriesOf(groupId), expenseId), { hasReceipt: false })
+  await deleteDoc(receiptOf(groupId, expenseId))
+}
+
+/** The receipt photo of an expense: undefined while loading, null when there is none. */
+export function useReceipt(groupId: string | undefined, expenseId: string | undefined) {
+  const [image, setImage] = useState<string | null | undefined>(groupId && expenseId ? undefined : null)
+  useEffect(() => {
+    if (!groupId || !expenseId) return
+    let live = true
+    getDoc(receiptOf(groupId, expenseId))
+      .then((snap) => live && setImage((snap.data()?.image as string | undefined) ?? null))
+      .catch((e) => {
+        ignoreGone(e)
+        if (live) setImage(null)
+      })
+    return () => {
+      live = false
+    }
+  }, [groupId, expenseId])
+  return image
 }
 
 /** Live entries for several groups at once, keyed by group id. Null until every group has loaded. */

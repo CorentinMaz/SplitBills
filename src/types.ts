@@ -1,6 +1,5 @@
 export type Member = {
   name: string
-  /** Percentage of each expense this member is responsible for (0–100). */
   share: number
 }
 
@@ -21,8 +20,8 @@ export type Expense = {
   amount: number
   paidBy: string
   date: string
-  /** Snapshot of the shares when the expense was saved, so changing the ratio later keeps history intact. */
   shares: Record<string, number>
+  hasReceipt?: boolean
   createdBy: string
   createdAt: number
 }

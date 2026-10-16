@@ -6,6 +6,7 @@ import { Progress } from '@/components/ui/progress'
 import { reportError } from '@/lib/errors'
 import { findReceipt, flatten, loadPhoto, readReceipt } from '@/lib/ocr'
 import type { ParsedReceipt } from '@/lib/receipt'
+import { receiptToJpeg } from '@/lib/receiptImage'
 import { quadSize, type Quad } from '@/lib/scan'
 
 type Photo = { canvas: HTMLCanvasElement; url: string; found: boolean }
@@ -24,7 +25,7 @@ export function ReceiptScanner({
   file: File | null
   onRetake: () => void
   onClose: () => void
-  onResult: (r: ParsedReceipt) => void
+  onResult: (r: ParsedReceipt, image: string) => void
 }) {
   const [photo, setPhoto] = useState<Photo | null>(null)
   const [quad, setQuad] = useState<Quad | null>(null)
@@ -55,7 +56,7 @@ export function ReceiptScanner({
     setReading({ preview: clean.toDataURL('image/png'), progress: 0 })
     try {
       const r = await readReceipt(clean, (progress) => setReading((s) => s && { ...s, progress }))
-      onResult(r)
+      onResult(r, receiptToJpeg(clean))
     } catch {
       reportError(new Error('Le scan a échoué. Vérifie ta connexion la première fois, puis réessaie.'))
       setReading(null)
