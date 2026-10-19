@@ -8,6 +8,12 @@ export function ReceiptViewer({ image, onClose }: { image: string | null; onClos
     <Dialog open={!!image} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         showCloseButton={false}
+        // The viewer opens from inside the expense drawer on phones: keep touch and pointer events here,
+        // or the drawer treats a scroll as a swipe-to-close and the ticket never moves.
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerMove={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
         className="flex h-dvh max-h-none w-screen max-w-none flex-col gap-0 rounded-none border-0 bg-neutral-950 p-0 text-white sm:max-w-none"
       >
         <header className="flex items-center justify-between px-5 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2">
@@ -24,7 +30,7 @@ export function ReceiptViewer({ image, onClose }: { image: string | null; onClos
             <X />
           </Button>
         </header>
-        <div className="min-h-0 flex-1 overflow-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))] [touch-action:pinch-zoom]">
+        <div className="min-h-0 flex-1 overflow-auto overscroll-contain px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           {image && <img src={image} alt="Ticket" className="mx-auto w-full max-w-xl rounded-lg" />}
         </div>
       </DialogContent>
