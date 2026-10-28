@@ -1,4 +1,4 @@
-import { Camera, Check, Pencil, Receipt, Trash2, X } from 'lucide-react'
+import { Camera, Check, FileUp, Pencil, Receipt, Trash2, X } from 'lucide-react'
 import { createContext, useCallback, useContext, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { useUser } from '@/auth'
@@ -116,10 +116,11 @@ function Form({
   const [shares, setShares] = useState<Record<string, number>>(existing?.shares ?? defaultShares(group))
   const custom = group.memberIds.some((id) => shares[id] !== group.members[id]?.share)
   const [draft, setDraft] = useState<{ id: string; text: string } | null>(null)
-  const [scanFile, setScanFile] = useState<File | null>(null)
+  const [scan, setScan] = useState<{ file: File; imported: boolean } | null>(null)
   const [readAmounts, setReadAmounts] = useState<number[]>([])
   const [error, setError] = useState<string | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
+  const importInput = useRef<HTMLInputElement>(null)
   const savedReceipt = useReceipt(existing?.hasReceipt ? group.id : undefined, existing?.id)
   const [receipt, setReceipt_] = useState<{ image: string } | 'removed' | null>(null)
   const receiptImage = receipt === 'removed' ? null : (receipt?.image ?? savedReceipt ?? null)
@@ -138,10 +139,10 @@ function Form({
     if (!g.memberIds.includes(paidBy)) setPaidBy(user.uid)
   }
 
-  const closeScanner = useCallback(() => setScanFile(null), [])
+  const closeScanner = useCallback(() => setScan(null), [])
 
   function onScanned(r: ParsedReceipt, image: string) {
-    setScanFile(null)
+    setScan(null)
     setError(null)
     setReceipt_({ image })
     setReadAmounts(r.amounts)
@@ -226,14 +227,27 @@ function Form({
           hidden
           onChange={(e) => {
             const file = e.target.files?.[0]
-            if (file) setScanFile(file)
+            if (file) setScan({ file, imported: false })
+            e.target.value = ''
+          }}
+        />
+        {/* A digital receipt: screenshot, emailed PDF… no `capture`, so the phone offers its files. */}
+        <input
+          ref={importInput}
+          type="file"
+          accept="image/*,application/pdf"
+          hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) setScan({ file, imported: true })
             e.target.value = ''
           }}
         />
         <ReceiptScanner
-          key={scanFile ? `${scanFile.name}-${scanFile.lastModified}-${scanFile.size}` : 'none'}
-          file={scanFile}
-          onRetake={() => fileInput.current?.click()}
+          key={scan ? `${scan.file.name}-${scan.file.lastModified}-${scan.file.size}` : 'none'}
+          file={scan?.file ?? null}
+          imported={scan?.imported}
+          onRetake={() => (scan?.imported ? importInput : fileInput).current?.click()}
           onClose={closeScanner}
           onResult={onScanned}
         />
@@ -249,7 +263,7 @@ function Form({
               {receiptImage && <img src={receiptImage} alt="" className="h-full w-full object-cover object-top" />}
             </button>
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <span className="font-semibold">{receipt && receipt !== 'removed' ? 'Ticket scanné' : 'Ticket joint'}</span>
+              <span className="font-semibold">{receipt && receipt !== 'removed' ? 'Ticket ajouté' : 'Ticket joint'}</span>
               <Button
                 type="button"
                 variant="action"
@@ -274,6 +288,16 @@ function Form({
               type="button"
               variant="ghost"
               size="icon"
+              className="size-9 rounded-full"
+              aria-label="Importer un autre ticket"
+              onClick={() => importInput.current?.click()}
+            >
+              <FileUp className="size-4.5" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
               className="size-9 rounded-full text-muted-foreground"
               aria-label="Retirer le ticket"
               onClick={() => setReceipt_('removed')}
@@ -282,15 +306,26 @@ function Form({
             </Button>
           </div>
         ) : (
-          <Button
-            type="button"
-            variant="secondary"
-            className="h-12 rounded-full text-base"
-            onClick={() => fileInput.current?.click()}
-          >
-            <Camera />
-            Scanner un ticket
-          </Button>
+          <div className="grid grid-cols-2 gap-3">
+            <Button
+              type="button"
+              variant="secondary"
+              className="h-12 rounded-full text-base"
+              onClick={() => fileInput.current?.click()}
+            >
+              <Camera />
+              Scanner
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="h-12 rounded-full text-base"
+              onClick={() => importInput.current?.click()}
+            >
+              <FileUp />
+              Importer
+            </Button>
+          </div>
         )}
         <ReceiptViewer image={viewing ? receiptImage : null} onClose={() => setViewing(false)} />
 
