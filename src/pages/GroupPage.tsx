@@ -7,6 +7,7 @@ import EntryRowWide from '@/components/EntryRowWide'
 import { useOpenExpense } from '@/components/ExpenseDialog'
 import ExpenseRow from '@/components/ExpenseRow'
 import GroupIcon from '@/components/GroupIcon'
+import MonthsPicker from '@/components/MonthsPicker'
 import { Fab, Loading, Money, Page } from '@/components/Page'
 import PageHeader from '@/components/PageHeader'
 import UserAvatar, { AvatarStack } from '@/components/UserAvatar'
@@ -19,9 +20,9 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { deleteEntry, useEntries } from '@/data/entries'
 import { useGroup } from '@/data/groups'
 import { CATEGORIES, categoryOf } from '@/lib/categories'
-import { relativeDay } from '@/lib/dates'
+import { inMonths, monthName, monthRange, periodLabel, relativeDay } from '@/lib/dates'
 import { shareInvite } from '@/lib/invite'
-import { formatMoney } from '@/lib/money'
+import { formatMoney, round2, today } from '@/lib/money'
 import { nameIn } from '@/lib/names'
 import { recordTransfers } from '@/lib/settle'
 import { byCategory, groupSummary } from '@/lib/stats'
@@ -32,21 +33,46 @@ export default function GroupPage() {
   const { groupId = '' } = useParams()
   const group = useGroup(groupId)
   const entries = useEntries(groupId)
+  // No month picked: every month. Shared by both layouts so resizing keeps the filter.
+  const [months, setMonths] = useState<string[]>([])
 
   if (group === null) return <Navigate to="/groups" replace />
   if (!group || !entries) return <Loading />
+  const period = { months, setMonths }
   return (
     <>
-      <MobileGroup group={group} entries={entries} />
-      <DesktopGroup group={group} entries={entries} />
+      <MobileGroup group={group} entries={entries} period={period} />
+      <DesktopGroup group={group} entries={entries} period={period} />
     </>
   )
 }
 
-function useGroupData(group: Group, entries: Entry[]) {
+type Period = { months: string[]; setMonths: (months: string[]) => void }
+
+/** Entries split by month, newest first, each with what was spent: refunds move money, they don't spend it. */
+function byMonth(entries: Entry[]) {
+  const out: { month: string; items: Entry[]; total: number }[] = []
+  for (const e of entries) {
+    const month = e.date.slice(0, 7)
+    if (out.at(-1)?.month !== month) out.push({ month, items: [], total: 0 })
+    const m = out.at(-1)!
+    m.items.push(e)
+    if (e.kind === 'expense') m.total = round2(m.total + e.amount)
+  }
+  return out
+}
+
+function useGroupData(group: Group, entries: Entry[], { months }: Period) {
   const user = useUser()
   const me = user.uid
+  // Balances and debts always count everything: only what was spent follows the months.
   const summary = groupSummary(group, entries, me)
+  const shown = entries.filter((e) => inMonths(e.date, months))
+  const expenses = shown.filter((e): e is Expense => e.kind === 'expense')
+  const spent = { total: round2(expenses.reduce((s, e) => s + e.amount, 0)), count: expenses.length }
+  const current = today().slice(0, 7)
+  const earliest = entries.at(-1)?.date.slice(0, 7) ?? current
+  const available = monthRange(earliest < current ? earliest : current, current)
   async function settleAll() {
     const n = summary.transfers.length
     if (!confirm(`Enregistrer ${n} remboursement${n > 1 ? 's' : ''}?`)) return
@@ -58,11 +84,22 @@ function useGroupData(group: Group, entries: Entry[]) {
   async function invite() {
     if (await shareInvite(group)) toast.success("Lien d'invitation copié")
   }
-  return { me, summary, settleAll, invite, name: nameIn(group, me) }
+  return { me, summary, shown, expenses, spent, available, settleAll, invite, name: nameIn(group, me) }
 }
 
-function MobileGroup({ group, entries }: { group: Group; entries: Entry[] }) {
-  const { me, summary, settleAll, invite, name } = useGroupData(group, entries)
+function MonthHeader({ month, total, currency }: { month: string; total: number; currency: string }) {
+  return (
+    <h2 className="flex items-baseline justify-between gap-3">
+      <span className="text-lg font-semibold first-letter:uppercase">{monthName(month)}</span>
+      <span className="text-sm text-muted-foreground">
+        Total <strong className="text-base text-foreground">{formatMoney(total, currency)}</strong>
+      </span>
+    </h2>
+  )
+}
+
+function MobileGroup({ group, entries, period }: { group: Group; entries: Entry[]; period: Period }) {
+  const { me, summary, shown, spent, available, settleAll, invite, name } = useGroupData(group, entries, period)
   const { transfers, balance: mine } = summary
   const ordered = [
     ...transfers.filter((t) => t.from === me || t.to === me),
@@ -128,46 +165,60 @@ function MobileGroup({ group, entries }: { group: Group; entries: Entry[] }) {
         )}
       </Card>
 
-      <h2 className="text-2xl font-semibold">Dépenses</h2>
-      {entries.length === 0 && <p className="py-8 text-center text-muted-foreground">Aucune dépense pour l'instant.</p>}
-      <ul className="flex flex-col gap-3">
-        {entries.map((e) => (
-          <ExpenseRow
-            key={e.id}
-            entry={e}
-            groupId={group.id}
-            me={me}
-            nameOf={name}
-            currency={group.currency}
-            onDeletePayment={() => confirm('Annuler ce remboursement?') && deleteEntry(group.id, e.id)}
-          />
-        ))}
-      </ul>
+      <div className="flex flex-col gap-3">
+        <h2 className="text-2xl font-semibold">Dépenses</h2>
+        <MonthsPicker value={period.months} onChange={period.setMonths} months={available} allowAll className="self-start" />
+        <div className="flex items-center justify-between rounded-xl bg-muted/70 p-4">
+          <span className="flex flex-col">
+            <span className="font-semibold first-letter:uppercase">Total {periodLabel(period.months)}</span>
+            <span className="text-xs text-muted-foreground">
+              {spent.count} dépense{spent.count > 1 ? 's' : ''}
+            </span>
+          </span>
+          <strong className="text-xl">{formatMoney(spent.total, group.currency)}</strong>
+        </div>
+      </div>
+      {shown.length === 0 && (
+        <p className="py-8 text-center text-muted-foreground">
+          {entries.length === 0 ? "Aucune dépense pour l'instant." : 'Aucune dépense sur cette période.'}
+        </p>
+      )}
+      {byMonth(shown).map((m) => (
+        <section key={m.month} className="flex flex-col gap-3">
+          <MonthHeader month={m.month} total={m.total} currency={group.currency} />
+          <ul className="flex flex-col gap-3">
+            {m.items.map((e) => (
+              <ExpenseRow
+                key={e.id}
+                entry={e}
+                groupId={group.id}
+                me={me}
+                nameOf={name}
+                currency={group.currency}
+                onDeletePayment={() => confirm('Annuler ce remboursement?') && deleteEntry(group.id, e.id)}
+              />
+            ))}
+          </ul>
+        </section>
+      ))}
       <Fab groupId={group.id} />
     </Page>
   )
 }
 
-function DesktopGroup({ group, entries }: { group: Group; entries: Entry[] }) {
-  const { me, summary, settleAll, invite, name } = useGroupData(group, entries)
+function DesktopGroup({ group, entries, period }: { group: Group; entries: Entry[]; period: Period }) {
+  const { me, summary, shown: inPeriod, expenses, spent, available, settleAll, invite, name } = useGroupData(group, entries, period)
   const openExpense = useOpenExpense()
   const [tab, setTab] = useState('all')
   const [category, setCategory] = useState('all')
   const money = (n: number) => formatMoney(n, group.currency)
 
-  const expenses = entries.filter((e): e is Expense => e.kind === 'expense')
-  const shown = entries.filter((e) => {
+  const shown = inPeriod.filter((e) => {
     if (tab === 'mine' && !(e.kind === 'expense' && e.paidBy === me)) return false
     if (tab === 'payments' && e.kind !== 'payment') return false
     if (category !== 'all' && !(e.kind === 'expense' && (e.category ?? 'other') === category)) return false
     return true
   })
-  const days: { label: string; items: Entry[] }[] = []
-  for (const e of shown) {
-    const label = relativeDay(e.date)
-    if (days.at(-1)?.label !== label) days.push({ label, items: [] })
-    days.at(-1)!.items.push(e)
-  }
   const categories = byCategory(expenses)
 
   return (
@@ -205,7 +256,10 @@ function DesktopGroup({ group, entries }: { group: Group; entries: Entry[] }) {
           <div className="flex divide-x rounded-xl bg-muted/80">
             <span className="flex flex-col px-5 py-3">
               <span className="text-[11px] font-bold tracking-wider text-muted-foreground uppercase">Total engagé</span>
-              <strong className="text-xl">{money(summary.total)}</strong>
+              <strong className="text-xl">{money(spent.total)}</strong>
+              {period.months.length > 0 && (
+                <span className="text-xs text-muted-foreground first-letter:uppercase">{periodLabel(period.months)}</span>
+              )}
             </span>
             <span className="flex flex-col px-5 py-3">
               <span className="text-[11px] font-bold tracking-wider text-muted-foreground uppercase">Ton solde</span>
@@ -239,7 +293,7 @@ function DesktopGroup({ group, entries }: { group: Group; entries: Entry[] }) {
             <Tabs value={tab} onValueChange={setTab}>
               <TabsList className="h-11 rounded-full">
                 <TabsTrigger value="all" className="rounded-full px-4">
-                  Toutes ({entries.length})
+                  Toutes ({inPeriod.length})
                 </TabsTrigger>
                 <TabsTrigger value="mine" className="rounded-full px-4">
                   Mes dépenses
@@ -249,6 +303,7 @@ function DesktopGroup({ group, entries }: { group: Group; entries: Entry[] }) {
                 </TabsTrigger>
               </TabsList>
             </Tabs>
+            <MonthsPicker value={period.months} onChange={period.setMonths} months={available} allowAll />
             <Select value={category} onValueChange={setCategory}>
               <SelectTrigger className="!h-11 w-48 rounded-full border-0 bg-muted">
                 <SelectValue />
@@ -264,18 +319,23 @@ function DesktopGroup({ group, entries }: { group: Group; entries: Entry[] }) {
             </Select>
           </Card>
 
-          {days.length === 0 && <p className="py-10 text-center text-muted-foreground">Aucune dépense ici pour l'instant.</p>}
-          {days.map((d) => (
-            <section key={d.label} className="flex flex-col gap-3">
-              <h3 className="flex items-center gap-3 text-xs font-bold tracking-wider text-muted-foreground uppercase">
-                {d.label}
-                <Separator className="flex-1" />
-              </h3>
-              <ul className="flex flex-col gap-3">
-                {d.items.map((e) => (
-                  <EntryRowWide key={e.id} entry={e} group={group} me={me} />
-                ))}
-              </ul>
+          {shown.length === 0 && <p className="py-10 text-center text-muted-foreground">Aucune dépense ici pour l'instant.</p>}
+          {byMonth(shown).map((m) => (
+            <section key={m.month} className="flex flex-col gap-3">
+              <MonthHeader month={m.month} total={m.total} currency={group.currency} />
+              {byDay(m.items).map((d) => (
+                <div key={d.label} className="flex flex-col gap-3">
+                  <h3 className="flex items-center gap-3 text-xs font-bold tracking-wider text-muted-foreground uppercase">
+                    {d.label}
+                    <Separator className="flex-1" />
+                  </h3>
+                  <ul className="flex flex-col gap-3">
+                    {d.items.map((e) => (
+                      <EntryRowWide key={e.id} entry={e} group={group} me={me} />
+                    ))}
+                  </ul>
+                </div>
+              ))}
             </section>
           ))}
         </div>
@@ -349,16 +409,19 @@ function DesktopGroup({ group, entries }: { group: Group; entries: Entry[] }) {
           </Card>
 
           <Card className="gap-4 border-0 p-5 shadow-soft">
-            <h2 className="text-lg font-semibold">Synthèse</h2>
+            <h2 className="flex items-baseline justify-between gap-2 text-lg font-semibold">
+              Synthèse
+              <span className="text-xs font-normal text-muted-foreground first-letter:uppercase">{periodLabel(period.months)}</span>
+            </h2>
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1 rounded-xl bg-muted/70 p-3.5">
                 <span className="text-[11px] font-bold tracking-wider text-muted-foreground uppercase">Moyenne / pers.</span>
-                <strong className="text-xl">{money(summary.total / Math.max(group.memberIds.length, 1))}</strong>
+                <strong className="text-xl">{money(spent.total / Math.max(group.memberIds.length, 1))}</strong>
               </div>
               <div className="flex flex-col gap-1 rounded-xl bg-muted/70 p-3.5">
                 <span className="text-[11px] font-bold tracking-wider text-muted-foreground uppercase">Dépenses</span>
-                <strong className="text-xl">{money(summary.total)}</strong>
-                <span className="text-xs text-muted-foreground">{summary.count} transaction{summary.count > 1 ? 's' : ''}</span>
+                <strong className="text-xl">{money(spent.total)}</strong>
+                <span className="text-xs text-muted-foreground">{spent.count} transaction{spent.count > 1 ? 's' : ''}</span>
               </div>
             </div>
             {categories.length > 0 && (
@@ -373,7 +436,7 @@ function DesktopGroup({ group, entries }: { group: Group; entries: Entry[] }) {
                   {categories.map((c) => (
                     <li key={c.id} className="flex items-center gap-1.5">
                       <span className="size-2 rounded-full" style={{ background: categoryOf(c.id).color }} />
-                      {categoryOf(c.id).label} ({Math.round((c.amount / summary.total) * 100)} %)
+                      {categoryOf(c.id).label} ({Math.round((c.amount / spent.total) * 100)} %)
                     </li>
                   ))}
                 </ul>
@@ -384,4 +447,14 @@ function DesktopGroup({ group, entries }: { group: Group; entries: Entry[] }) {
       </div>
     </Page>
   )
+}
+
+function byDay(entries: Entry[]) {
+  const days: { label: string; items: Entry[] }[] = []
+  for (const e of entries) {
+    const label = relativeDay(e.date)
+    if (days.at(-1)?.label !== label) days.push({ label, items: [] })
+    days.at(-1)!.items.push(e)
+  }
+  return days
 }

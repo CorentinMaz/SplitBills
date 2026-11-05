@@ -45,3 +45,20 @@ export function monthRange(from: string, to: string) {
   for (let m = to; m >= from; m = shiftMonth(m, -1)) out.push(m)
   return out
 }
+
+/** True when `iso` falls in one of `months`; no months means every month. */
+export function inMonths(iso: string, months: string[]) {
+  return months.length === 0 || months.includes(iso.slice(0, 7))
+}
+
+/** "octobre 2026", "août à octobre 2026", "3 mois", or "tous les mois" when none is picked. */
+export function periodLabel(months: string[]) {
+  if (months.length === 0) return 'tous les mois'
+  const sorted = [...months].sort()
+  const first = sorted[0]
+  const last = sorted.at(-1)!
+  if (sorted.length === 1) return monthName(first)
+  if (monthRange(first, last).length !== sorted.length) return `${sorted.length} mois`
+  const sameYear = first.slice(0, 4) === last.slice(0, 4)
+  return `${monthName(first, !sameYear)} à ${monthName(last)}`
+}

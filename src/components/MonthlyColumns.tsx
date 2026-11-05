@@ -21,7 +21,7 @@ function shortMonth(ym: string) {
 }
 
 /**
- * One series, one hue: monthly totals as columns. The selected month is full strength,
+ * One series, one hue: monthly totals as columns. The selected months are full strength,
  * the rest a lighter step of the same hue. Hover shows the exact value; click selects.
  */
 export default function MonthlyColumns({
@@ -30,13 +30,14 @@ export default function MonthlyColumns({
   onSelect,
 }: {
   data: { month: string; value: number }[]
-  selected: string
+  /** Months shown full strength. */
+  selected: string[]
   onSelect: (month: string) => void
 }) {
   const [hover, setHover] = useState<number | null>(null)
   const top = niceMax(Math.max(...data.map((d) => d.value)))
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => f * top)
-  const shown = hover ?? data.findIndex((d) => d.month === selected)
+  const shown = hover ?? data.findLastIndex((d) => selected.includes(d.month))
 
   return (
     <div className="flex gap-3">
@@ -55,7 +56,7 @@ export default function MonthlyColumns({
         </div>
         <div className="relative flex h-52 items-stretch">
           {data.map((d, i) => {
-            const on = d.month === selected
+            const on = selected.includes(d.month)
             return (
               <button
                 key={d.month}

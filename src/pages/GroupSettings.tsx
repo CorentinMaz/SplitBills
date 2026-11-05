@@ -21,6 +21,7 @@ import { shareInvite } from '@/lib/invite'
 import { rebalanceShares } from '@/lib/shares'
 import { formatMoney } from '@/lib/money'
 import { groupSummary } from '@/lib/stats'
+import { cn } from '@/lib/utils'
 import type { Entry, Group, Member } from '@/types'
 
 export default function GroupSettings() {
@@ -185,18 +186,28 @@ function Settings({ group, entries }: { group: Group; entries: Entry[] }) {
                           <span className="text-xs text-muted-foreground">Membre</span>
                         )}
                       </span>
-                      <strong className="ml-auto text-lg text-primary md:hidden">{members[id]?.share ?? 0} %</strong>
+                      <ShareInput
+                        value={members[id]?.share ?? 0}
+                        onChange={(v) => setShare(id, v)}
+                        label={`Part de ${members[id]?.name}`}
+                        className="ml-auto flex text-lg md:hidden"
+                      />
                     </span>
                     <span className="flex items-center gap-3">
                       <Slider
                         min={0}
                         max={100}
-                        step={5}
+                        step={1}
                         value={[members[id]?.share ?? 0]}
                         onValueChange={([v]) => setShare(id, v)}
                         aria-label={`Part de ${members[id]?.name}`}
                       />
-                      <strong className="hidden w-14 shrink-0 text-right whitespace-nowrap text-primary md:block">{members[id]?.share ?? 0} %</strong>
+                      <ShareInput
+                        value={members[id]?.share ?? 0}
+                        onChange={(v) => setShare(id, v)}
+                        label={`Part de ${members[id]?.name}`}
+                        className="hidden shrink-0 md:flex"
+                      />
                     </span>
                     <span className="hidden flex-col items-end md:flex">
                       <Money value={b} currency={group.currency} className="font-bold" />
@@ -285,5 +296,41 @@ function Settings({ group, entries }: { group: Group; entries: Entry[] }) {
         </div>
       </div>
     </Page>
+  )
+}
+
+/** The exact percentage, typed: the slider alone makes 68 % fiddly on a phone. */
+function ShareInput({
+  value,
+  onChange,
+  label,
+  className,
+}: {
+  value: number
+  onChange: (v: number) => void
+  label: string
+  className?: string
+}) {
+  // While typing, show what was typed: an emptied field must not jump back to 0.
+  const [draft, setDraft] = useState<string | null>(null)
+  return (
+    <span className={cn('items-center gap-1 rounded-lg bg-muted px-2.5 py-1.5 font-bold text-primary', className)}>
+      <input
+        type="text"
+        inputMode="numeric"
+        aria-label={label}
+        value={draft ?? value}
+        onFocus={(e) => e.target.select()}
+        onBlur={() => setDraft(null)}
+        onChange={(e) => {
+          let text = e.target.value.replace(/\D/g, '').slice(0, 3)
+          if (Number(text) > 100) text = '100'
+          setDraft(text)
+          onChange(Number(text))
+        }}
+        className="w-[3.5ch] bg-transparent text-right outline-none"
+      />
+      %
+    </span>
   )
 }

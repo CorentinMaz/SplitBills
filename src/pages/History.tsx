@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import { displayName, useUser } from '@/auth'
 import { useOpenExpense } from '@/components/ExpenseDialog'
 import ExpenseRow from '@/components/ExpenseRow'
+import MonthsPicker from '@/components/MonthsPicker'
 import { Eyebrow, Loading, Money, Page, StatCard } from '@/components/Page'
 import UserAvatar from '@/components/UserAvatar'
 import { Badge } from '@/components/ui/badge'
@@ -16,7 +17,7 @@ import { useAllEntries } from '@/data/entries'
 import { useGroups } from '@/data/groups'
 import { computeBalances } from '@/lib/balance'
 import { CATEGORIES, categoryOf, TINTS } from '@/lib/categories'
-import { currentMonthName, monthLabel } from '@/lib/dates'
+import { currentMonthName, inMonths, monthName, monthRange, periodLabel } from '@/lib/dates'
 import { formatMoney, round2, today } from '@/lib/money'
 import { nameIn } from '@/lib/names'
 import { myShareOf } from '@/lib/stats'
@@ -35,13 +36,17 @@ export default function History() {
   const q = params.get('q')?.trim().toLowerCase() ?? ''
   const [category, setCategory] = useState<string>('all')
   const [groupFilter, setGroupFilter] = useState('all')
-  const [month, setMonth] = useState(params.get('month') ?? 'all')
+  // ?month=2026-09,2026-10 comes from the stats page; none means every month.
+  const [months, setMonths] = useState(() => params.get('month')?.split(',').filter(Boolean) ?? [])
   const [payer, setPayer] = useState('all')
   const [page, setPage] = useState(0)
 
   if (!groups || (groups.length > 0 && !byGroup)) return <Loading />
 
   const thisMonth = today().slice(0, 7)
+  // The cards follow the picked months, this month otherwise.
+  const cardMonths = months.length ? months : [thisMonth]
+  const cardLabel = months.length ? periodLabel(months) : currentMonthName()
   let monthSpent = 0
   let monthMine = 0
   let monthCount = 0
@@ -50,7 +55,7 @@ export default function History() {
   for (const g of groups) {
     const entries = byGroup?.[g.id] ?? []
     for (const e of entries) {
-      if (e.kind !== 'expense' || !e.date.startsWith(thisMonth)) continue
+      if (e.kind !== 'expense' || !inMonths(e.date, cardMonths)) continue
       monthSpent += e.amount
       const mine = myShareOf(e, user.uid)
       monthMine += mine
@@ -64,14 +69,14 @@ export default function History() {
   const all = groups
     .flatMap((g) => (byGroup?.[g.id] ?? []).map((entry) => ({ entry, group: g })))
     .sort((a, b) => b.entry.date.localeCompare(a.entry.date) || b.entry.createdAt - a.entry.createdAt)
-  // Months with data, plus the one asked for in ?month= so the select can show it even if empty.
-  const months = [...new Set([...all.map((x) => x.entry.date.slice(0, 7)), ...(month !== 'all' ? [month] : [])])].sort().reverse()
+  const earliest = [...all.map((x) => x.entry.date.slice(0, 7)), ...months, thisMonth].sort()[0]
+  const available = monthRange(earliest, thisMonth)
 
   const matches = ({ entry, group }: { entry: Entry; group: Group }) => {
     if (category !== 'all' && !(entry.kind === 'expense' && (entry.category ?? 'other') === category)) return false
     if (q && !(entry.kind === 'expense' && entry.title.toLowerCase().includes(q))) return false
     if (groupFilter !== 'all' && group.id !== groupFilter) return false
-    if (month !== 'all' && !entry.date.startsWith(month)) return false
+    if (!inMonths(entry.date, months)) return false
     if (payer === 'me' && entry.paidBy !== user.uid) return false
     if (payer === 'others' && entry.paidBy === user.uid) return false
     return true
@@ -81,10 +86,16 @@ export default function History() {
   const current = Math.min(page, pages - 1)
   const slice = filtered.slice(current * PAGE_SIZE, (current + 1) * PAGE_SIZE)
 
-  const byMonth: { label: string; items: typeof filtered }[] = []
+  // Refunds move money between people: they aren't spending, so totals leave them out.
+  const spentOf = (items: typeof filtered) =>
+    round2(items.reduce((s, { entry }) => s + (entry.kind === 'expense' ? entry.amount : 0), 0))
+  const mineOf = (items: typeof filtered) =>
+    round2(items.reduce((s, { entry }) => s + (entry.kind === 'expense' ? myShareOf(entry, user.uid) : 0), 0))
+
+  const byMonth: { month: string; items: typeof filtered }[] = []
   for (const item of filtered) {
-    const label = monthLabel(item.entry.date)
-    if (byMonth.at(-1)?.label !== label) byMonth.push({ label, items: [] })
+    const month = item.entry.date.slice(0, 7)
+    if (byMonth.at(-1)?.month !== month) byMonth.push({ month, items: [] })
     byMonth.at(-1)!.items.push(item)
   }
 
@@ -125,9 +136,12 @@ export default function History() {
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="row-span-2 flex flex-col justify-between gap-2.5 rounded-xl bg-gradient-to-br from-teal-50 to-teal-200 p-5 text-teal-900 dark:from-teal-900/40 dark:to-teal-700/40 dark:text-teal-100">
-            <span className="text-sm">Ce mois-ci</span>
+            <span className="text-sm">{months.length ? 'Sur la période' : 'Ce mois-ci'}</span>
             <strong className="text-3xl tracking-tight">{formatMoney(monthSpent)}</strong>
-            <span className="text-sm">Total dépensé en {currentMonthName()}</span>
+            <span className="text-sm">
+              Total dépensé {months.length ? '' : 'en '}
+              {cardLabel}
+            </span>
           </div>
           {[
             { label: 'Tu dois', value: owe, icon: ArrowDown, tint: TINTS.orange },
@@ -144,10 +158,25 @@ export default function History() {
             </Card>
           ))}
         </div>
+        <MonthsPicker value={months} onChange={reset(setMonths)} months={available} allowAll className="self-start" />
+        {byMonth.length > 1 && (
+          <div className="flex items-center justify-between rounded-xl bg-muted/70 p-4">
+            <span className="flex flex-col">
+              <span className="font-semibold first-letter:uppercase">Total {periodLabel(months)}</span>
+              <span className="text-xs text-muted-foreground">Ta part {formatMoney(mineOf(filtered))}</span>
+            </span>
+            <strong className="text-xl">{formatMoney(spentOf(filtered))}</strong>
+          </div>
+        )}
         {byMonth.length === 0 && <p className="py-8 text-center text-muted-foreground">Rien à afficher.</p>}
         {byMonth.map((m) => (
-          <section key={m.label} className="flex flex-col gap-3">
-            <h2 className="text-lg font-semibold">{m.label}</h2>
+          <section key={m.month} className="flex flex-col gap-3">
+            <h2 className="flex items-baseline justify-between gap-3">
+              <span className="text-lg font-semibold first-letter:uppercase">{monthName(m.month)}</span>
+              <span className="text-sm text-muted-foreground">
+                Total <strong className="text-base text-foreground">{formatMoney(spentOf(m.items))}</strong>
+              </span>
+            </h2>
             <ul className="flex flex-col gap-3">
               {m.items.map(({ entry, group }) => (
                 <ExpenseRow
@@ -180,7 +209,7 @@ export default function History() {
 
         <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
           <StatCard
-            label={`Volume ${currentMonthName()}`}
+            label={`Volume ${cardLabel}`}
             value={formatMoney(monthSpent)}
             hint="Total des dépenses engagées"
             icon={Banknote}
@@ -216,14 +245,28 @@ export default function History() {
                 className="h-11 rounded-full border-0 bg-muted pl-11"
               />
             </div>
-            <FilterSelect value={month} onChange={reset(setMonth)} options={[['all', 'Tous les mois'], ...months.map((m) => [m, monthLabel(m + '-01')] as [string, string])]} />
+            <MonthsPicker value={months} onChange={reset(setMonths)} months={available} allowAll className="h-11" />
             <FilterSelect value={groupFilter} onChange={reset(setGroupFilter)} options={[['all', 'Tous les groupes'], ...groups.map((g) => [g.id, g.name] as [string, string])]} />
             <FilterSelect value={category} onChange={reset(setCategory)} options={[['all', 'Toutes les catégories'], ...CATEGORIES.map((c) => [c.id, c.label] as [string, string])]} />
             <FilterSelect value={payer} onChange={reset(setPayer)} options={[['all', 'Payé par : tous'], ['me', 'Payé par : moi'], ['others', 'Payé par : les autres']]} />
           </div>
-          <span className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
+          <span className="flex flex-wrap items-baseline justify-between gap-2 text-xs font-bold tracking-wider text-muted-foreground uppercase">
             {filtered.length} résultat{filtered.length > 1 ? 's' : ''}
+            <span>
+              Total <span className="text-base text-foreground normal-case">{formatMoney(spentOf(filtered))}</span>
+              {' · '}Ta part <span className="text-base text-primary normal-case">{formatMoney(mineOf(filtered))}</span>
+            </span>
           </span>
+          {byMonth.length > 1 && (
+            <div className="flex flex-wrap gap-2">
+              {byMonth.map((m) => (
+                <Badge key={m.month} variant="secondary" className="h-8 gap-1.5 rounded-full bg-muted px-3 text-sm text-foreground">
+                  <span className="first-letter:uppercase">{monthName(m.month)}</span>
+                  <strong>{formatMoney(spentOf(m.items))}</strong>
+                </Badge>
+              ))}
+            </div>
+          )}
         </Card>
 
         <Card className="gap-0 overflow-hidden border-0 py-0 shadow-soft">

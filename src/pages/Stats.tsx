@@ -2,7 +2,7 @@ import { ArrowDownRight, ArrowUpRight, ChevronRight, Hash, HandCoins, Wallet, X 
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useUser } from '@/auth'
-import MonthPicker from '@/components/MonthPicker'
+import MonthsPicker from '@/components/MonthsPicker'
 import MonthlyColumns from '@/components/MonthlyColumns'
 import { Eyebrow, Loading, Page } from '@/components/Page'
 import { useOpenExpense } from '@/components/ExpenseDialog'
@@ -15,7 +15,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAllEntries } from '@/data/entries'
 import { useGroups } from '@/data/groups'
 import { categoryOf, TINTS } from '@/lib/categories'
-import { monthName, monthRange, relativeDay, shiftMonth } from '@/lib/dates'
+import { inMonths, monthName, monthRange, periodLabel, relativeDay, shiftMonth } from '@/lib/dates'
 import { formatMoney, today } from '@/lib/money'
 import { myShareOf } from '@/lib/stats'
 import { cn } from '@/lib/utils'
@@ -30,7 +30,8 @@ export default function Stats() {
   const groups = useGroups(user.uid)
   const byGroup = useAllEntries(groups)
   const current = today().slice(0, 7)
-  const [month, setMonth] = useState(current)
+  // One month or several: tiles, bars and detail then add them all up.
+  const [months, setMonths] = useState([current])
   const [metric, setMetric] = useState<Metric>('share')
   // Clicking a group or category bar narrows the detail list to it.
   const [focus, setFocus] = useState<{ kind: 'group' | 'category'; id: string } | null>(null)
@@ -52,9 +53,11 @@ export default function Stats() {
     .reverse()
     .map((m) => ({ month: m, value: sum(inMonth(m)) }))
 
-  const thisMonth = inMonth(month)
+  const thisMonth = expenses.filter(({ e }) => inMonths(e.date, months))
   const total = sum(thisMonth)
-  const lastMonth = inMonth(shiftMonth(month, -1))
+  // Compared to the month before only when one month is picked; several months show their average.
+  const single = months.length === 1 ? months[0] : null
+  const lastMonth = single ? inMonth(shiftMonth(single, -1)) : []
   const shareOf = (list: { e: Expense }[]) => list.reduce((s, { e }) => s + myShareOf(e, me), 0)
   const paidOf = (list: { e: Expense }[]) => list.reduce((s, { e }) => s + (e.paidBy === me ? e.amount : 0), 0)
   const share = shareOf(thisMonth)
@@ -95,7 +98,16 @@ export default function Stats() {
   const focusLabel =
     focus && (focus.kind === 'group' ? groups.find((g) => g.id === focus.id)?.name : categoryOf(focus.id).label)
 
-  const label = month === current ? 'ce mois-ci' : `en ${monthName(month, false)}`
+  const label = !single ? 'sur la période' : single === current ? 'ce mois-ci' : `en ${monthName(single, false)}`
+  const period = single ? label : periodLabel(months)
+  const trend = (now: number, before: number) =>
+    single ? (
+      <Delta now={now} before={before} month={single} />
+    ) : (
+      <span className="text-muted-foreground">
+        {formatMoney(now / months.length)} / mois sur {months.length} mois
+      </span>
+    )
 
   return (
     <Page>
@@ -115,16 +127,16 @@ export default function Stats() {
               ))}
             </TabsList>
           </Tabs>
-          <MonthPicker value={month} onChange={setMonth} earliest={earliest} />
+          <MonthsPicker value={months} onChange={setMonths} months={monthRange(earliest, current)} />
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:gap-5 lg:grid-cols-4">
         <Tile label={`Ma part ${label}`} value={formatMoney(share)} icon={Wallet} tint={TINTS.teal}>
-          <Delta now={share} before={prevShare} month={month} />
+          {trend(share, prevShare)}
         </Tile>
         <Tile label="J'ai payé" value={formatMoney(paid)} icon={HandCoins} tint={TINTS.blue}>
-          <Delta now={paid} before={prevPaid} month={month} />
+          {trend(paid, prevPaid)}
         </Tile>
         <Tile
           label={paid >= share ? 'Avancé pour les autres' : 'Avancé par les autres'}
@@ -152,14 +164,14 @@ export default function Stats() {
             </strong>
           </span>
         </div>
-        <MonthlyColumns data={series} selected={month} onSelect={setMonth} />
+        <MonthlyColumns data={series} selected={months} onSelect={(m) => setMonths([m])} />
       </Card>
 
       <div className="grid gap-5 lg:grid-cols-2">
         <Card className="gap-4 border-0 p-5 shadow-soft md:p-6">
           <div>
             <h2 className="text-xl font-semibold">Par groupe</h2>
-            <p className="text-sm text-muted-foreground first-letter:uppercase">{label} · clique pour filtrer le détail</p>
+            <p className="text-sm text-muted-foreground first-letter:uppercase">{period} · clique pour filtrer le détail</p>
           </div>
           {perGroup.length === 0 && <Empty />}
           {perGroup.map(({ group, value, groupTotal }) => (
@@ -180,7 +192,7 @@ export default function Stats() {
         <Card className="gap-4 border-0 p-5 shadow-soft md:p-6">
           <div>
             <h2 className="text-xl font-semibold">Par catégorie</h2>
-            <p className="text-sm text-muted-foreground first-letter:uppercase">{label} · clique pour filtrer le détail</p>
+            <p className="text-sm text-muted-foreground first-letter:uppercase">{period} · clique pour filtrer le détail</p>
           </div>
           {perCategory.length === 0 && <Empty />}
           {perCategory.map(({ id, value }) => {
@@ -213,7 +225,7 @@ export default function Stats() {
           <div>
             <h2 className="text-xl font-semibold">Détail des dépenses</h2>
             <p className="text-sm text-muted-foreground first-letter:uppercase">
-              {label} · {detail.length} dépense{detail.length > 1 ? 's' : ''}
+              {period} · {detail.length} dépense{detail.length > 1 ? 's' : ''}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -349,7 +361,7 @@ export default function Stats() {
         )}
 
         <Button asChild variant="action" className="-ml-4 self-start">
-          <Link to={`/history?month=${month}`}>
+          <Link to={`/history?month=${months.join(',')}`}>
             Ouvrir dans l'historique <ChevronRight />
           </Link>
         </Button>
@@ -444,5 +456,5 @@ function BarRow({
 }
 
 function Empty() {
-  return <p className="py-6 text-center text-sm text-muted-foreground">Aucune dépense ce mois-là.</p>
+  return <p className="py-6 text-center text-sm text-muted-foreground">Aucune dépense sur cette période.</p>
 }
