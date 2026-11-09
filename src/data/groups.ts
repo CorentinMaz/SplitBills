@@ -81,15 +81,17 @@ export async function leaveGroup(group: Group, uid: string) {
 }
 
 /**
- * Deletes the group and all its expenses. Firestore doesn't cascade to subcollections,
- * so expenses go first (in batches of 500), then the group itself. Rules only let the creator do this.
+ * Deletes the group with its expenses and recurring expenses. Firestore doesn't cascade to subcollections,
+ * so they go first (in batches of 500), then the group itself. Rules only let the creator do this.
  */
 export async function deleteGroup(group: Group) {
-  const expenses = await getDocs(collection(db, 'groups', group.id, 'expenses'))
-  for (let i = 0; i < expenses.docs.length; i += 500) {
-    const batch = writeBatch(db)
-    expenses.docs.slice(i, i + 500).forEach((d) => batch.delete(d.ref))
-    await batch.commit()
+  for (const name of ['recurring', 'expenses']) {
+    const docs = (await getDocs(collection(db, 'groups', group.id, name))).docs
+    for (let i = 0; i < docs.length; i += 500) {
+      const batch = writeBatch(db)
+      docs.slice(i, i + 500).forEach((d) => batch.delete(d.ref))
+      await batch.commit()
+    }
   }
   await deleteDoc(doc(db, 'groups', group.id))
 }

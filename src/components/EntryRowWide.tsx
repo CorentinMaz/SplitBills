@@ -1,4 +1,4 @@
-import { Banknote, EllipsisVertical, Pencil, Receipt, Trash2 } from 'lucide-react'
+import { Banknote, EllipsisVertical, Pencil, Receipt, Repeat, Trash2 } from 'lucide-react'
 import { useOpenExpense } from '@/components/ExpenseDialog'
 import UserAvatar from '@/components/UserAvatar'
 import { Badge } from '@/components/ui/badge'
@@ -69,6 +69,7 @@ export default function EntryRowWide({ entry: e, group, me }: { entry: Entry; gr
             <span className="flex items-center gap-1.5 truncate text-[17px] font-semibold group-hover/row:text-primary">
               <span className="truncate">{e.title}</span>
               {e.hasReceipt && <Receipt className="size-3.5 shrink-0 text-muted-foreground" aria-label="Ticket joint" />}
+              {e.recurringId && <Repeat className="size-3.5 shrink-0 text-muted-foreground" aria-label="Chaque mois" />}
             </span>
             <Badge variant="secondary" className="rounded-full bg-muted text-muted-foreground">
               {parts} part{parts > 1 ? 's' : ''}

@@ -14,6 +14,7 @@ export function useGroup(groupId: string): Group | null | undefined {
 export async function createGroup(user: User, name: string) {
   const id = newId()
   update((s) => ({
+    ...s,
     groups: [
       ...s.groups,
       {
@@ -49,7 +50,9 @@ export async function leaveGroup(group: Group, uid: string) {
 export async function deleteGroup(group: Group) {
   update((s) => {
     const entries = { ...s.entries }
+    const recurring = { ...s.recurring }
     delete entries[group.id]
-    return { groups: s.groups.filter((g) => g.id !== group.id), entries }
+    delete recurring[group.id]
+    return { groups: s.groups.filter((g) => g.id !== group.id), entries, recurring }
   })
 }

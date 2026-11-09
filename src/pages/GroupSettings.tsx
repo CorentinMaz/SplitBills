@@ -1,9 +1,10 @@
-import { Check, ChevronRight, Copy, Info, LogOut, RotateCcw, Shield, SlidersHorizontal, TriangleAlert, UserPlus, Users } from 'lucide-react'
+import { Check, ChevronRight, Copy, Info, LogOut, Plus, Repeat, RotateCcw, Shield, SlidersHorizontal, TriangleAlert, UserPlus, Users } from 'lucide-react'
 import { useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useUser } from '@/auth'
 import DeleteGroupButton from '@/components/DeleteGroupButton'
+import { useOpenExpense } from '@/components/ExpenseDialog'
 import GroupIcon from '@/components/GroupIcon'
 import { Loading, Money, Page } from '@/components/Page'
 import PageHeader from '@/components/PageHeader'
@@ -16,10 +17,14 @@ import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { useEntries } from '@/data/entries'
 import { leaveGroup, updateGroup, useGroup } from '@/data/groups'
+import { useRecurring } from '@/data/recurring'
+import { categoryOf } from '@/lib/categories'
 import { reportError } from '@/lib/errors'
 import { shareInvite } from '@/lib/invite'
 import { rebalanceShares } from '@/lib/shares'
 import { formatMoney } from '@/lib/money'
+import { nextMonth, occurrenceDate } from '@/lib/recurring'
+import { relativeDay } from '@/lib/dates'
 import { groupSummary } from '@/lib/stats'
 import { cn } from '@/lib/utils'
 import type { Entry, Group, Member } from '@/types'
@@ -233,6 +238,7 @@ function Settings({ group, entries }: { group: Group; entries: Entry[] }) {
               </div>
             </CardContent>
           </Card>
+          <RecurringCard group={group} />
         </div>
 
         <div className="flex flex-col gap-5">
@@ -332,5 +338,55 @@ function ShareInput({
       />
       %
     </span>
+  )
+}
+
+/** The expenses the group adds every month by itself: rent, subscriptions… */
+function RecurringCard({ group }: { group: Group }) {
+  const rules = useRecurring(group.id)
+  const openExpense = useOpenExpense()
+  const user = useUser()
+  return (
+    <Card className="border-0 shadow-soft">
+      <CardHeader className="flex flex-row items-start justify-between gap-4">
+        <div className="flex flex-col gap-1.5">
+          <CardTitle className="flex items-center gap-2.5 text-lg">
+            <Repeat className="size-5 text-primary" /> Dépenses récurrentes
+          </CardTitle>
+          <CardDescription>Ajoutées toutes seules chaque mois, avec leur répartition. Ex. le loyer.</CardDescription>
+        </div>
+        <Button variant="action" className="-mr-4" onClick={() => openExpense({ groupId: group.id, repeat: true })}>
+          <Plus /> Ajouter
+        </Button>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-2">
+        {rules?.length === 0 && <p className="text-sm text-muted-foreground">Aucune pour l'instant.</p>}
+        {rules
+          ?.toSorted((a, b) => a.day - b.day || a.title.localeCompare(b.title))
+          .map((r) => {
+            const cat = categoryOf(r.category)
+            const payer = r.paidBy === user.uid ? 'toi' : (group.members[r.paidBy]?.name ?? '?')
+            return (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => openExpense({ groupId: group.id, recurring: r })}
+                className="flex items-center gap-3 rounded-xl p-2.5 text-left transition hover:bg-muted/70"
+              >
+                <span className={cn('grid size-10 shrink-0 place-items-center rounded-full', cat.tint)}>
+                  <cat.icon className="size-4.5" />
+                </span>
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate font-semibold">{r.title}</span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    Le {r.day} de chaque mois · payé par {payer} · prochaine : {relativeDay(occurrenceDate(nextMonth(r), r.day))}
+                  </span>
+                </span>
+                <strong>{formatMoney(r.amount, group.currency)}</strong>
+              </button>
+            )
+          })}
+      </CardContent>
+    </Card>
   )
 }

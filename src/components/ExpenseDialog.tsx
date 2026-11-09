@@ -1,4 +1,4 @@
-import { Camera, Check, FileUp, Pencil, Receipt, Trash2, X } from 'lucide-react'
+import { Camera, Check, FileUp, Pencil, Receipt, Repeat, Trash2, X } from 'lucide-react'
 import { createContext, useCallback, useContext, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { useUser } from '@/auth'
@@ -11,18 +11,22 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } f
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { addExpense, deleteEntry, removeReceipt, setReceipt, updateExpense, useReceipt } from '@/data/entries'
 import { useGroups } from '@/data/groups'
+import { addRecurring, deleteRecurring, updateRecurring, useRecurring } from '@/data/recurring'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { CATEGORIES } from '@/lib/categories'
 import { reportError } from '@/lib/errors'
 import { formatMoney, round2, today } from '@/lib/money'
 import type { ParsedReceipt } from '@/lib/receipt'
+import { nextMonth, occurrenceDate } from '@/lib/recurring'
 import { rebalanceShares } from '@/lib/shares'
 import { cn } from '@/lib/utils'
-import type { Expense, Group } from '@/types'
+import type { Expense, Group, Recurring } from '@/types'
 
-export type ExpenseTarget = { groupId?: string; expense?: Expense }
+/** What the modal edits: a new expense, an expense, or a recurring expense's rule. */
+export type ExpenseTarget = { groupId?: string; expense?: Expense; recurring?: Recurring; repeat?: boolean }
 
 const OpenContext = createContext<(target?: ExpenseTarget) => void>(() => {})
 
@@ -33,10 +37,15 @@ export function useOpenExpense() {
 
 export function ExpenseDialogProvider({ children }: { children: ReactNode }) {
   const [target, setTarget] = useState<ExpenseTarget | null>(null)
+  const [opened, setOpened] = useState(0)
+  const open = (t?: ExpenseTarget) => {
+    setTarget(t ?? {})
+    setOpened((n) => n + 1)
+  }
   return (
-    <OpenContext.Provider value={(t) => setTarget(t ?? {})}>
+    <OpenContext.Provider value={open}>
       {children}
-      {target && <ExpenseModal target={target} onClose={() => setTarget(null)} />}
+      {target && <ExpenseModal key={opened} target={target} onClose={() => setTarget(null)} />}
     </OpenContext.Provider>
   )
 }
@@ -104,16 +113,22 @@ function Form({
   onClose: () => void
 }) {
   const user = useUser()
+  const openExpense = useOpenExpense()
+  const rule = target.recurring
   const existing = target.expense
+  const source = rule ?? existing
   const [group, setGroup] = useState(initialGroup)
   const defaultShares = (g: Group) => Object.fromEntries(g.memberIds.map((id) => [id, g.members[id]?.share ?? 0]))
 
-  const [title, setTitle] = useState(existing?.title ?? '')
-  const [category, setCategory] = useState(existing?.category ?? 'groceries')
-  const [amount, setAmount] = useState(existing ? String(existing.amount) : '')
-  const [date, setDate] = useState(existing?.date ?? today())
-  const [paidBy, setPaidBy] = useState(existing?.paidBy ?? user.uid)
-  const [shares, setShares] = useState<Record<string, number>>(existing?.shares ?? defaultShares(group))
+  const [title, setTitle] = useState(source?.title ?? '')
+  const [category, setCategory] = useState(source?.category ?? 'groceries')
+  const [amount, setAmount] = useState(source ? String(source.amount) : '')
+  const [date, setDate] = useState(rule ? occurrenceDate(nextMonth(rule), rule.day) : (existing?.date ?? today()))
+  const [paidBy, setPaidBy] = useState(source?.paidBy ?? user.uid)
+  const [shares, setShares] = useState<Record<string, number>>(source?.shares ?? defaultShares(group))
+  const [repeat, setRepeat] = useState(!!rule || !!target.repeat)
+  const rules = useRecurring(group.id)
+  const parentRule = existing?.recurringId ? rules?.find((r) => r.id === existing.recurringId) : undefined
   const custom = group.memberIds.some((id) => shares[id] !== group.members[id]?.share)
   const [draft, setDraft] = useState<{ id: string; text: string } | null>(null)
   const [scan, setScan] = useState<{ file: File; imported: boolean } | null>(null)
@@ -159,6 +174,16 @@ function Form({
     if (shareTotal !== 100) return setError(`La répartition fait ${shareTotal} %, elle doit faire 100 %.`)
     const data = { title: title.trim() || 'Dépense', category, amount: round2(value), date, paidBy, shares }
     try {
+      if (repeat) {
+        const { date: _, ...fields } = data
+        const ruleData = { ...fields, day: Number(date.slice(8, 10)), startMonth: date.slice(0, 7) }
+        if (rule) await updateRecurring(group.id, rule.id, ruleData)
+        else await addRecurring(group.id, { ...ruleData, createdBy: user.uid })
+        toast.success(rule ? 'Dépense récurrente modifiée' : 'Dépense récurrente créée', {
+          description: `Ajoutée le ${Number(date.slice(8, 10))} de chaque mois.`,
+        })
+        return onClose()
+      }
       let id = existing?.id
       if (id) await updateExpense(group.id, id, data)
       else id = (await addExpense(group.id, { ...data, createdBy: user.uid })).id
@@ -172,13 +197,22 @@ function Form({
   }
 
   async function remove() {
+    if (rule) {
+      if (!confirm('Arrêter cette dépense récurrente? Les dépenses déjà ajoutées restent.')) return
+      await deleteRecurring(group.id, rule.id)
+      toast.success('Dépense récurrente arrêtée')
+      return onClose()
+    }
     if (!existing || !confirm('Supprimer cette dépense?')) return
     await deleteEntry(group.id, existing.id)
     onClose()
   }
 
   return (
-    <ResponsiveModal title={existing ? 'Modifier la dépense' : 'Ajouter une dépense'} onClose={onClose}>
+    <ResponsiveModal
+      title={rule ? 'Dépense récurrente' : existing ? 'Modifier la dépense' : 'Ajouter une dépense'}
+      onClose={onClose}
+    >
       <form className="flex flex-col gap-6" onSubmit={submit}>
         <div className="flex flex-col items-center gap-1 rounded-2xl bg-muted/60 py-5">
           <span className={fieldLabel}>Montant total de la facture</span>
@@ -219,6 +253,25 @@ function Form({
           )}
         </div>
 
+        {existing?.recurringId && (
+          <div className="flex items-center gap-3 rounded-2xl bg-secondary/60 p-3.5 text-sm">
+            <Repeat className="size-5 shrink-0 text-primary" />
+            <span className="flex-1">
+              {parentRule ? 'Ajoutée automatiquement chaque mois.' : 'Ajoutée par une dépense récurrente arrêtée depuis.'}
+            </span>
+            {parentRule && (
+              <Button
+                type="button"
+                variant="action"
+                className="-mr-2 h-8"
+                onClick={() => openExpense({ groupId: group.id, recurring: parentRule })}
+              >
+                Modifier la récurrence
+              </Button>
+            )}
+          </div>
+        )}
+
         <input
           ref={fileInput}
           type="file"
@@ -251,7 +304,7 @@ function Form({
           onClose={closeScanner}
           onResult={onScanned}
         />
-        {receiptImage || receiptLoading ? (
+        {repeat ? null : receiptImage || receiptLoading ? (
           <div className="flex items-center gap-3 rounded-2xl bg-muted p-2.5 pr-3">
             <button
               type="button"
@@ -347,7 +400,7 @@ function Form({
           </div>
           <div className="flex flex-col gap-2">
             <Label className={fieldLabel}>Groupe concerné</Label>
-            <Select value={group.id} onValueChange={switchGroup} disabled={!!existing}>
+            <Select value={group.id} onValueChange={switchGroup} disabled={!!source}>
               <SelectTrigger className={cn(fieldBox, '!h-12 w-full')}>
                 <SelectValue />
               </SelectTrigger>
@@ -406,11 +459,29 @@ function Form({
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="date" className={fieldLabel}>
-              Date
+              {rule ? 'Prochaine fois' : repeat ? 'Première fois' : 'Date'}
             </Label>
             <Input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required className={fieldBox} />
           </div>
         </div>
+
+        {!existing && (
+          <label className="flex cursor-pointer items-center gap-3 rounded-2xl bg-muted px-3.5 py-3">
+            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-secondary text-secondary-foreground">
+              <Repeat className="size-4.5" />
+            </span>
+            <span className="flex flex-1 flex-col">
+              <span className="font-medium">Chaque mois</span>
+              <span className="text-xs text-muted-foreground">
+                {repeat
+                  ? `Ajoutée automatiquement le ${Number(date.slice(8, 10))} de chaque mois.`
+                  : 'Pour le loyer, les abonnements…'}
+              </span>
+            </span>
+            {/* A rule stays a rule: to stop it, delete it. */}
+            <Switch checked={repeat} onCheckedChange={setRepeat} disabled={!!rule} />
+          </label>
+        )}
 
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
@@ -457,8 +528,15 @@ function Form({
         {error && <p className="text-sm text-destructive">{error}</p>}
 
         <div className="sticky bottom-0 -mx-5 flex gap-3 bg-gradient-to-t from-background from-70% to-transparent px-5 pt-3 pb-[calc(16px+env(safe-area-inset-bottom))] md:-mx-8 md:border-t md:bg-background md:px-8 md:py-5">
-          {existing && (
-            <Button type="button" variant="ghost" size="icon" className="size-14 rounded-full text-destructive md:size-12" onClick={remove} aria-label="Supprimer">
+          {source && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-14 rounded-full text-destructive md:size-12"
+              onClick={remove}
+              aria-label={rule ? 'Arrêter la récurrence' : 'Supprimer'}
+            >
               <Trash2 />
             </Button>
           )}
@@ -466,7 +544,7 @@ function Form({
             Annuler
           </Button>
           <Button variant="brand" className="h-14 flex-1 rounded-full text-base md:h-12">
-            <Check /> {existing ? 'Enregistrer' : 'Ajouter la dépense'}
+            <Check /> {source ? 'Enregistrer' : repeat ? 'Ajouter chaque mois' : 'Ajouter la dépense'}
           </Button>
         </div>
       </form>

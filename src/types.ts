@@ -22,6 +22,22 @@ export type Expense = {
   date: string
   shares: Record<string, number>
   hasReceipt?: boolean
+  recurringId?: string
+  createdBy: string
+  createdAt: number
+}
+
+/** A rule that adds the same expense to the group every month, e.g. the rent. */
+export type Recurring = {
+  id: string
+  title: string
+  category?: string
+  amount: number
+  paidBy: string
+  shares: Record<string, number>
+  day: number
+  startMonth: string
+  lastMonth: string | null
   createdBy: string
   createdAt: number
 }

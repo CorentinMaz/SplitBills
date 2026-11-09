@@ -19,7 +19,9 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from '@/components/ui/sidebar'
+import { useGroups } from '@/data/groups'
 import { usePushListener, usePushPrompt } from '@/data/push'
+import { useRecurringRunner } from '@/data/recurring'
 import { auth } from '@/firebase'
 import { cn } from '@/lib/utils'
 
@@ -142,6 +144,7 @@ export default function AppLayout() {
   const { uid } = useUser()
   usePushListener(uid)
   usePushPrompt(uid)
+  useRecurringRunner(useGroups(uid))
   return (
     <ExpenseDialogProvider>
       <SidebarProvider style={{ '--sidebar-width': '17rem' } as CSSProperties}>

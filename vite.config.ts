@@ -13,6 +13,7 @@ const DEMO_SWAPS: Record<string, string> = {
   'src/data/groups.ts': 'src/demo/groups.ts',
   'src/data/entries.ts': 'src/demo/entries.ts',
   'src/data/push.ts': 'src/demo/push.ts',
+  'src/data/recurring.ts': 'src/demo/recurring.ts',
 }
 
 function demoMode(): Plugin {

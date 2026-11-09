@@ -1,11 +1,11 @@
 import { useSyncExternalStore } from 'react'
-import type { Entry, Group } from '@/types'
+import type { Entry, Group, Recurring } from '@/types'
 import { seedEntries, seedGroups } from './seed'
 
 /** In-memory database for `npm run demo`: same shapes as Firestore, nothing leaves the browser. */
-type State = { groups: Group[]; entries: Record<string, Entry[]> }
+type State = { groups: Group[]; entries: Record<string, Entry[]>; recurring: Record<string, Recurring[]> }
 
-let state: State = { groups: seedGroups(), entries: seedEntries() }
+let state: State = { groups: seedGroups(), entries: seedEntries(), recurring: {} }
 const listeners = new Set<() => void>()
 let nextId = 1000
 
