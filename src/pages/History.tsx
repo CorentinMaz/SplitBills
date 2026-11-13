@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, Banknote, ChevronLeft, ChevronRight, History as HistoryIcon, Plus, Search, TrendingUp, Wallet, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Banknote, ChevronLeft, ChevronRight, Download, History as HistoryIcon, Plus, Search, TrendingUp, Wallet, X } from 'lucide-react'
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { displayName, useUser } from '@/auth'
@@ -249,6 +249,14 @@ export default function History() {
             <FilterSelect value={groupFilter} onChange={reset(setGroupFilter)} options={[['all', 'Tous les groupes'], ...groups.map((g) => [g.id, g.name] as [string, string])]} />
             <FilterSelect value={category} onChange={reset(setCategory)} options={[['all', 'Toutes les catégories'], ...CATEGORIES.map((c) => [c.id, c.label] as [string, string])]} />
             <FilterSelect value={payer} onChange={reset(setPayer)} options={[['all', 'Payé par : tous'], ['me', 'Payé par : moi'], ['others', 'Payé par : les autres']]} />
+            <Button
+              variant="outline"
+              className="ml-auto h-11 rounded-full bg-card px-5"
+              disabled={filtered.length === 0}
+              onClick={() => downloadCsv(filtered, user.uid)}
+            >
+              <Download /> Exporter (CSV)
+            </Button>
           </div>
           <span className="flex flex-wrap items-baseline justify-between gap-2 text-xs font-bold tracking-wider text-muted-foreground uppercase">
             {filtered.length} résultat{filtered.length > 1 ? 's' : ''}
@@ -273,7 +281,7 @@ export default function History() {
           <Table>
             <TableHeader className="bg-muted/60">
               <TableRow className="hover:bg-transparent">
-                {['Date', 'Dépense & catégorie', 'Groupe', 'Payé par', 'Montant'].map((h, i) => (
+                {['Date', 'Dépense & catégorie', 'Groupe', 'Payé par', 'Ta part / total'].map((h, i) => (
                   <TableHead
                     key={h}
                     className={cn('h-12 text-xs font-bold tracking-wider uppercase', i === 0 && 'pl-6', i === 4 && 'pr-6 text-right')}
@@ -311,7 +319,7 @@ export default function History() {
                         </span>
                         <span className="flex flex-col">
                           <span className="font-semibold">{isExpense ? e.title : `${name(e.paidBy)} → ${name(e.to)}`}</span>
-                          <span className="text-[11px] font-bold tracking-wider text-primary uppercase">
+                          <span className="text-[11px] font-bold tracking-wider text-primary uppercase" style={cat ? { color: cat.color } : undefined}>
                             {cat?.label ?? 'Remboursement'}
                           </span>
                         </span>
@@ -323,20 +331,35 @@ export default function History() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <span className="flex items-center gap-2">
-                        <UserAvatar id={e.paidBy} name={group.members[e.paidBy]?.name} className="size-7 text-[10px]" />
-                        {name(e.paidBy)}
+                      <span className="flex items-center gap-2.5">
+                        <UserAvatar id={e.paidBy} name={group.members[e.paidBy]?.name} className="size-8 text-[11px]" />
+                        <span className="flex flex-col items-start">
+                          {name(e.paidBy)}
+                          {isExpense &&
+                            (e.paidBy === user.uid ? (
+                              <span className="rounded-md bg-secondary px-1.5 py-0.5 text-[11px] font-semibold text-secondary-foreground">
+                                Payé par toi
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-muted-foreground">Avancé par tiers</span>
+                            ))}
+                        </span>
                       </span>
                     </TableCell>
                     <TableCell className="pr-6 text-right">
-                      <span className="flex flex-col items-end">
-                        <strong>{formatMoney(e.amount, group.currency)}</strong>
-                        {isExpense && (
-                          <span className="text-xs text-muted-foreground">
-                            Ta part {formatMoney(myShareOf(e, user.uid), group.currency)}
-                          </span>
-                        )}
-                      </span>
+                      {isExpense ? (
+                        <span className="flex flex-col items-end">
+                          <strong className={cn('text-base', e.paidBy === user.uid && 'text-positive')}>
+                            {formatMoney(myShareOf(e, user.uid), group.currency)}
+                          </strong>
+                          <span className="text-xs text-muted-foreground">Total note : {formatMoney(e.amount, group.currency)}</span>
+                        </span>
+                      ) : (
+                        <span className="flex flex-col items-end">
+                          <strong>{formatMoney(e.amount, group.currency)}</strong>
+                          <span className="text-xs text-muted-foreground">Remboursement</span>
+                        </span>
+                      )}
                     </TableCell>
                   </TableRow>
                 )
@@ -390,4 +413,26 @@ function FilterSelect({ value, onChange, options }: { value: string; onChange: (
       </SelectContent>
     </Select>
   )
+}
+
+/** Saves the filtered rows as a CSV that Excel and Numbers open in French: semicolons, decimal commas. */
+function downloadCsv(items: { entry: Entry; group: Group }[], me: string) {
+  const num = (n: number) => round2(n).toFixed(2).replace('.', ',')
+  const cell = (v: string) => (/[;"\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v)
+  const rows = [['Date', 'Dépense', 'Catégorie', 'Groupe', 'Payé par', 'Montant', 'Ta part', 'Devise']]
+  for (const { entry: e, group } of items) {
+    const name = nameIn(group, me)
+    rows.push(
+      e.kind === 'expense'
+        ? [e.date, e.title, categoryOf(e.category).label, group.name, name(e.paidBy), num(e.amount), num(myShareOf(e, me)), group.currency]
+        : [e.date, `${name(e.paidBy)} → ${name(e.to)}`, 'Remboursement', group.name, name(e.paidBy), num(e.amount), '', group.currency],
+    )
+  }
+  const csv = '\uFEFF' + rows.map((r) => r.map(cell).join(';')).join('\r\n')
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `splitbills-${today()}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
 }

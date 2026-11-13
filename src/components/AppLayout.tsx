@@ -112,30 +112,46 @@ function AppSidebar() {
   )
 }
 
-/** Phone: floating dark pill at the bottom, active tab expands with its label. */
+/** Phone: floating dark pill, the add button in the middle. History is reached from "Voir tout" on the home page. */
+const MOBILE_TABS = TABS.filter((t) => t.to !== '/history')
+
 function MobileNav() {
   const active = useActiveTab()
+  const openExpense = useOpenExpense()
+  const { pathname } = useLocation()
+  const groupId = pathname.match(/^\/g\/([^/]+)/)?.[1]
+  const tab = (t: (typeof TABS)[number]) => {
+    const on = active === t.to
+    return (
+      <Link
+        key={t.to}
+        to={t.to}
+        aria-label={t.label}
+        className={cn(
+          'flex h-11 items-center gap-2 rounded-full px-3 text-[13px] font-bold text-slate-400 transition-all hover:text-white',
+          on && 'bg-teal-400 px-4 text-teal-950',
+        )}
+      >
+        <t.icon className="size-5" strokeWidth={on ? 2.5 : 2} />
+        {on && <span>{t.label}</span>}
+      </Link>
+    )
+  }
   return (
     <nav
       aria-label="Navigation"
       className="fixed bottom-[calc(16px+env(safe-area-inset-bottom))] left-1/2 z-30 flex h-16 w-[calc(100%-40px)] max-w-[520px] -translate-x-1/2 items-center justify-around rounded-full bg-slate-900/95 px-2.5 shadow-2xl backdrop-blur-xl md:hidden"
     >
-      {TABS.map((t) => {
-        const on = active === t.to
-        return (
-          <Link
-            key={t.to}
-            to={t.to}
-            className={cn(
-              'flex h-11 items-center gap-2 rounded-full px-3.5 text-[13px] font-bold text-slate-400 transition-all hover:text-white',
-              on && 'bg-teal-400 px-4.5 text-teal-950',
-            )}
-          >
-            <t.icon className="size-5" strokeWidth={on ? 2.5 : 2} />
-            {on && <span>{t.label}</span>}
-          </Link>
-        )
-      })}
+      {MOBILE_TABS.slice(0, 2).map(tab)}
+      <button
+        type="button"
+        aria-label="Ajouter une dépense"
+        onClick={() => openExpense({ groupId })}
+        className="grid size-12 shrink-0 place-items-center rounded-full bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/30 transition hover:scale-105"
+      >
+        <Plus className="size-6" strokeWidth={2.5} />
+      </button>
+      {MOBILE_TABS.slice(2).map(tab)}
     </nav>
   )
 }

@@ -1,4 +1,4 @@
-import { Camera, ChevronRight, Plus, TrendingDown, TrendingUp, Users, Wallet } from 'lucide-react'
+import { ArrowRight, Camera, Check, ChevronRight, Plus, TrendingDown, TrendingUp, Users, Wallet } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { displayName, useUser } from '@/auth'
@@ -7,7 +7,7 @@ import { useOpenExpense } from '@/components/ExpenseDialog'
 import ExpenseRow from '@/components/ExpenseRow'
 import GroupIcon from '@/components/GroupIcon'
 import MonthPicker from '@/components/MonthPicker'
-import { Eyebrow, Fab, Loading, Money, Page } from '@/components/Page'
+import { Eyebrow, Loading, Money, Page } from '@/components/Page'
 import UserAvatar, { AvatarStack } from '@/components/UserAvatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -20,7 +20,7 @@ import { monthName, relativeDay } from '@/lib/dates'
 import { formatMoney, round2, today } from '@/lib/money'
 import { nameIn } from '@/lib/names'
 import { recordTransfers, remind } from '@/lib/settle'
-import { byCategory, groupSummary, personBalances } from '@/lib/stats'
+import { byCategory, groupSummary, personBalances, type PersonBalance } from '@/lib/stats'
 import { cn } from '@/lib/utils'
 import type { Entry, Expense, Group } from '@/types'
 
@@ -61,6 +61,7 @@ export default function Home() {
         setFilter={setFilter}
         spent={spent}
         balance={balance}
+        people={personBalances(shown, data, user.uid)}
         recent={recent(shown, 6)}
         picker={picker}
       />
@@ -90,6 +91,7 @@ function MobileHome({
   setFilter,
   spent,
   balance,
+  people,
   recent,
   picker,
 }: {
@@ -98,11 +100,26 @@ function MobileHome({
   setFilter: (id: string | null) => void
   spent: number
   balance: number
+  people: PersonBalance[]
   recent: Recent
   picker: Picker
 }) {
   const user = useUser()
-  const fabGroup = filter ?? (groups.length === 1 ? groups[0].id : undefined)
+  const owedBy = people.filter((p) => p.amount > 0)
+  const owedTo = people.filter((p) => p.amount < 0)
+  const owed = round2(owedBy.reduce((s, p) => s + p.amount, 0))
+  const owe = round2(-owedTo.reduce((s, p) => s + p.amount, 0))
+  const groupName = (p: PersonBalance) => {
+    const ids = [...new Set(p.transfers.map((t) => t.groupId))]
+    return ids.length === 1 ? groups.find((g) => g.id === ids[0])?.name : `${ids.length} groupes`
+  }
+  const settle = (list: PersonBalance[], text: string) =>
+    confirm(text) &&
+    recordTransfers(
+      list.flatMap((p) => p.transfers.filter((t) => t.from === user.uid)),
+      user.uid,
+    )
+
   return (
     <Page className="md:hidden">
       <div className="flex items-center gap-3 pt-2">
@@ -119,8 +136,7 @@ function MobileHome({
 
       <MonthPicker value={picker.month} onChange={picker.setMonth} earliest={picker.earliest} className="self-start" />
 
-      <section className="relative flex flex-col gap-2.5 overflow-hidden rounded-xl bg-brand p-5 text-white shadow-xl shadow-teal-700/25">
-        <span className="absolute -top-20 -right-16 size-56 rounded-full bg-white/10" />
+      <section className="relative flex flex-col gap-3 overflow-hidden rounded-2xl bg-brand p-5 text-white shadow-xl shadow-teal-700/25">
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold tracking-wider uppercase opacity-85">
             Dépenses totales ({monthName(picker.month, false)})
@@ -130,21 +146,38 @@ function MobileHome({
           </span>
         </div>
         <span className="text-4xl font-bold tracking-tight">{formatMoney(spent)}</span>
-        <Separator className="my-2 bg-white/25" />
-        <div className="flex items-end justify-between">
-          <span className="flex flex-col gap-0.5">
-            <span className="text-xs font-bold tracking-wider uppercase opacity-85">Solde global</span>
-            <span
-              className={cn(
-                'text-xl font-bold',
-                balance > 0 && '[&_span]:text-emerald-200',
-                balance < 0 && '[&_span]:text-orange-200',
-              )}
-            >
-              <Money value={balance} />
-            </span>
+        <Separator className="my-1 bg-white/25" />
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold tracking-wider uppercase opacity-85">Solde global net</span>
+          <span className="rounded-full bg-white/15 px-2.5 py-1 text-sm font-bold [&_span]:text-emerald-200">
+            <Money value={balance} /> net
           </span>
-          <span className="opacity-90">{balance > 0 ? 'On te doit' : balance < 0 ? 'Tu dois' : 'Tout est réglé'}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-2 rounded-xl border border-white/20 bg-white/10 p-3">
+            <span className="text-[11px] font-bold tracking-wider uppercase opacity-85">On te doit</span>
+            <strong className="text-xl">{formatMoney(owed)}</strong>
+            <Button
+              size="sm"
+              className="rounded-full bg-white text-teal-800 hover:bg-white/90"
+              disabled={owed <= 0}
+              onClick={() => remind(owedBy.map((p) => p.name).join(', '), owed)}
+            >
+              Relancer tout <ArrowRight />
+            </Button>
+          </div>
+          <div className="flex flex-col gap-2 rounded-xl border border-white/20 bg-white/10 p-3">
+            <span className="text-[11px] font-bold tracking-wider text-amber-200 uppercase">Tu dois</span>
+            <strong className="text-xl text-amber-200">{formatMoney(owe)}</strong>
+            <Button
+              size="sm"
+              className="rounded-full bg-amber-400 text-slate-900 hover:bg-amber-300"
+              disabled={owe <= 0}
+              onClick={() => settle(owedTo, `Enregistrer le remboursement de ${formatMoney(owe)}?`)}
+            >
+              Régler ma dette <Check />
+            </Button>
+          </div>
         </div>
       </section>
 
@@ -163,6 +196,44 @@ function MobileHome({
         </div>
       )}
 
+      {people.length > 0 && (
+        <section className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Équilibres & règlements</h2>
+            <span className="text-sm text-muted-foreground">
+              {people.length} personne{people.length > 1 ? 's' : ''}
+            </span>
+          </div>
+          {people.map((p) => (
+            <Card key={p.uid} className="flex-row items-center gap-3 border-0 p-3.5 shadow-soft">
+              <UserAvatar id={p.uid} name={p.name} />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate">
+                  <span className="font-semibold">{p.name}</span>
+                  <span className="text-xs text-muted-foreground"> · {groupName(p)}</span>
+                </span>
+                <span className={cn('text-sm font-semibold', p.amount > 0 ? 'text-positive' : 'text-negative')}>
+                  {p.amount > 0 ? 'Te doit' : 'Tu lui dois'} {formatMoney(Math.abs(p.amount))}
+                </span>
+              </span>
+              {p.amount > 0 ? (
+                <Button size="sm" className="rounded-full" onClick={() => remind(p.name, p.amount)}>
+                  Relancer
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  className="rounded-full bg-amber-400 text-slate-900 hover:bg-amber-300"
+                  onClick={() => settle([p], `Enregistrer que tu as remboursé ${formatMoney(-p.amount)} à ${p.name}?`)}
+                >
+                  Payer {formatMoney(-p.amount)}
+                </Button>
+              )}
+            </Card>
+          ))}
+        </section>
+      )}
+
       <div className="mt-1 flex items-center justify-between">
         <h2 className="text-lg font-semibold">
           {picker.isCurrent ? 'Dépenses récentes' : `Dépenses de ${monthName(picker.month, false)}`}
@@ -173,7 +244,6 @@ function MobileHome({
       </div>
 
       <RecentList groups={groups} recent={recent} showGroup={groups.length > 1 && !filter} />
-      <Fab groupId={fabGroup} />
     </Page>
   )
 }

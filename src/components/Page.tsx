@@ -1,6 +1,5 @@
-import { type LucideIcon, Plus } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useOpenExpense } from '@/components/ExpenseDialog'
 import { cn } from '@/lib/utils'
 
 /** Page body: leaves room for the bottom pill on phones, wider on desktop. */
@@ -19,21 +18,6 @@ export function Page({ children, className }: { children: ReactNode; className?:
 
 export function Loading() {
   return <div className="py-20 text-center text-muted-foreground">Chargement…</div>
-}
-
-/** Phone-only floating "add expense" button; desktop uses the sidebar button. */
-export function Fab({ groupId }: { groupId?: string }) {
-  const open = useOpenExpense()
-  return (
-    <button
-      type="button"
-      aria-label="Ajouter une dépense"
-      onClick={() => open({ groupId })}
-      className="fixed right-5 bottom-[calc(100px+env(safe-area-inset-bottom))] z-20 grid size-14 place-items-center rounded-full bg-brand text-white shadow-xl shadow-teal-700/40 transition hover:scale-105 md:hidden"
-    >
-      <Plus className="size-7" />
-    </button>
-  )
 }
 
 /** Small uppercase label above a page title, e.g. "ESPACE PARTAGÉ". */

@@ -1,4 +1,4 @@
-import { ArrowRight, CircleCheck, Clock, Plus, Receipt, Search, Users, Wallet } from 'lucide-react'
+import { ArrowRight, CircleCheck, Clock, CreditCard, Plus, Receipt, Search, Send, Users, Wallet } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useUser } from '@/auth'
@@ -17,6 +17,7 @@ import { TINTS } from '@/lib/categories'
 import { relativeDay } from '@/lib/dates'
 import { reportError } from '@/lib/errors'
 import { formatMoney, round2 } from '@/lib/money'
+import { recordTransfers, remind } from '@/lib/settle'
 import { groupSummary } from '@/lib/stats'
 import { cn } from '@/lib/utils'
 import type { Group } from '@/types'
@@ -102,10 +103,10 @@ export default function Groups() {
         <p className="py-8 text-center text-muted-foreground">Aucun groupe. Crée-en un, puis invite ta blonde ou tes colocs.</p>
       ) : (
         <>
-          {/* Phone: compact 2-column cards. */}
-          <div className="grid grid-cols-2 gap-3.5 md:hidden">
+          {/* Phone: one card per group, with its balance and the action it calls for. */}
+          <div className="flex flex-col gap-3.5 md:hidden">
             {groups.map((g, i) => (
-              <MobileCard key={g.id} group={g} index={i} balance={summaries[g.id].balance} />
+              <MobileCard key={g.id} group={g} index={i} summary={summaries[g.id]} me={user.uid} />
             ))}
           </div>
 
@@ -179,35 +180,53 @@ export default function Groups() {
   )
 }
 
-function MobileCard({ group: g, index, balance: bal }: { group: Group; index: number; balance: number }) {
+function MobileCard({ group: g, index, summary, me }: { group: Group; index: number; summary: Summary; me: string }) {
+  const bal = summary.balance
+  const money = (n: number) => formatMoney(n, g.currency)
+  const mine = summary.transfers.filter((t) => t.from === me)
+  const theirs = summary.transfers.filter((t) => t.to === me)
   return (
-    <Link to={`/g/${g.id}`} className="group">
-      <Card className="h-full gap-0 overflow-hidden border-0 py-0 shadow-soft transition group-hover:-translate-y-0.5 group-hover:shadow-md">
-        <div className={cn('bg-dots h-16', groupColor(index))} />
-        <div className="-mt-5 px-4">
-          <AvatarStack people={g.memberIds.map((id) => ({ id, name: g.members[id]?.name }))} className="size-9" />
-        </div>
-        <div className="flex min-w-0 flex-col gap-0.5 px-4 pt-2.5 pb-3">
+    <Card className="gap-4 border-0 p-4 shadow-soft">
+      <Link to={`/g/${g.id}`} className="flex items-center gap-3">
+        <span className={cn('bg-dots grid size-12 shrink-0 place-items-center rounded-xl text-white', groupColor(index))}>
+          <Users className="size-5" />
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate text-lg font-semibold">{g.name}</span>
-          <span className="text-sm text-muted-foreground">
-            {g.memberIds.length} membre{g.memberIds.length > 1 ? 's' : ''}
+          <span className="text-xs text-muted-foreground">
+            {g.memberIds.length} membre{g.memberIds.length > 1 ? 's' : ''} ·{' '}
+            {summary.latest ? `Dernière dépense ${relativeDay(summary.latest.date).toLowerCase()}` : 'Aucune dépense'}
           </span>
-        </div>
-        <div
-          className={cn(
-            'mx-4 mt-auto border-t py-3 text-[13px] font-bold text-muted-foreground',
-            bal > 0.005 && 'text-positive',
-            bal < -0.005 && 'text-negative',
-          )}
-        >
-          {bal > 0.005
-            ? `On te doit ${formatMoney(bal, g.currency)}`
-            : bal < -0.005
-              ? `Tu dois ${formatMoney(-bal, g.currency)}`
-              : 'Tout est réglé'}
-        </div>
-      </Card>
-    </Link>
+        </span>
+        <ArrowRight className="size-4 text-muted-foreground" />
+      </Link>
+      <div className="flex items-center justify-between gap-3 rounded-xl bg-muted/70 p-3">
+        <AvatarStack people={g.memberIds.map((id) => ({ id, name: g.members[id]?.name }))} max={3} className="size-8 text-xs" />
+        <span className="flex min-w-0 flex-1 flex-col items-end">
+          <span className="text-[11px] font-bold tracking-wider text-muted-foreground uppercase">Solde</span>
+          <span className={cn('text-sm font-bold', bal > 0.005 ? 'text-positive' : bal < -0.005 ? 'text-negative' : 'text-muted-foreground')}>
+            {bal > 0.005 ? `On te doit ${money(bal)}` : bal < -0.005 ? `Tu dois ${money(-bal)}` : 'Tout est réglé'}
+          </span>
+        </span>
+        {theirs.length > 0 && (
+          <Button size="sm" variant="secondary" className="rounded-full" onClick={() => remind(g.name, bal)}>
+            <Send /> Relancer
+          </Button>
+        )}
+        {mine.length > 0 && (
+          <Button
+            size="sm"
+            className="rounded-full"
+            onClick={() =>
+              confirm(`Enregistrer le remboursement de ${money(-bal)}?`) &&
+              recordTransfers(mine.map((t) => ({ ...t, groupId: g.id })), me)
+            }
+          >
+            <CreditCard /> Régler
+          </Button>
+        )}
+      </div>
+    </Card>
   )
 }
 

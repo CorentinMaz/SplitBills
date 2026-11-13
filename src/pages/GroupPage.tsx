@@ -1,4 +1,24 @@
-import { ChevronRight, Pencil, Plus, Scale, Settings, Sparkles, UserPlus, Users, Wallet } from 'lucide-react'
+import {
+  ArrowLeftRight,
+  Bell,
+  ChartPie,
+  Check,
+  CheckCheck,
+  ChevronDown,
+  ChevronRight,
+  CircleCheck,
+  Pencil,
+  Plus,
+  ReceiptText,
+  Scale,
+  Send,
+  Settings,
+  Share2,
+  Sparkles,
+  UserPlus,
+  Users,
+  Wallet,
+} from 'lucide-react'
 import { useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -8,7 +28,7 @@ import { useOpenExpense } from '@/components/ExpenseDialog'
 import ExpenseRow from '@/components/ExpenseRow'
 import GroupIcon from '@/components/GroupIcon'
 import MonthsPicker from '@/components/MonthsPicker'
-import { Fab, Loading, Money, Page } from '@/components/Page'
+import { Loading, Money, Page } from '@/components/Page'
 import PageHeader from '@/components/PageHeader'
 import UserAvatar, { AvatarStack } from '@/components/UserAvatar'
 import { Badge } from '@/components/ui/badge'
@@ -20,12 +40,12 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { deleteEntry, useEntries } from '@/data/entries'
 import { useGroup } from '@/data/groups'
 import { CATEGORIES, categoryOf } from '@/lib/categories'
-import { inMonths, monthName, monthRange, periodLabel, relativeDay } from '@/lib/dates'
+import { inMonths, monthName, monthRange, relativeDay } from '@/lib/dates'
 import { shareInvite } from '@/lib/invite'
 import { formatMoney, round2, today } from '@/lib/money'
 import { nameIn } from '@/lib/names'
-import { recordTransfers } from '@/lib/settle'
-import { byCategory, groupSummary } from '@/lib/stats'
+import { recordTransfers, remind } from '@/lib/settle'
+import { byCategory, groupSummary, myShareOf } from '@/lib/stats'
 import { cn } from '@/lib/utils'
 import type { Entry, Expense, Group } from '@/types'
 
@@ -98,23 +118,40 @@ function MonthHeader({ month, total, currency }: { month: string; total: number;
   )
 }
 
+/** What each member paid and what was theirs, over every expense: the two sides of their balance. */
+function memberTotals(group: Group, entries: Entry[]) {
+  const expenses = entries.filter((e): e is Expense => e.kind === 'expense')
+  return Object.fromEntries(
+    group.memberIds.map((id) => [
+      id,
+      {
+        paid: round2(expenses.filter((e) => e.paidBy === id).reduce((s, e) => s + e.amount, 0)),
+        part: round2(expenses.reduce((s, e) => s + myShareOf(e, id), 0)),
+      },
+    ]),
+  )
+}
+
 function MobileGroup({ group, entries, period }: { group: Group; entries: Entry[]; period: Period }) {
-  const { me, summary, shown, spent, available, settleAll, invite, name } = useGroupData(group, entries, period)
-  const { transfers, balance: mine } = summary
-  const ordered = [
-    ...transfers.filter((t) => t.from === me || t.to === me),
-    ...transfers.filter((t) => t.from !== me && t.to !== me),
-  ]
+  const data = useGroupData(group, entries, period)
+  const { me, summary, invite } = data
+  const [tab, setTab] = useState('expenses')
+  const totals = memberTotals(group, entries)
+  const money = (n: number) => formatMoney(n, group.currency)
+  const mine = summary.balance
+  const owedToMe = summary.transfers.filter((t) => t.to === me)
+  const iOwe = summary.transfers.filter((t) => t.from === me)
+
   return (
     <Page className="md:hidden">
       <PageHeader
         back="/groups"
         actions={
           <>
-            <Button size="icon" variant="secondary" className="rounded-full" aria-label="Inviter" onClick={invite}>
-              <UserPlus />
+            <Button size="icon" variant="secondary" className="rounded-full bg-card shadow-soft" aria-label="Inviter" onClick={invite}>
+              <Share2 />
             </Button>
-            <Button asChild size="icon" variant="secondary" className="rounded-full bg-muted text-foreground">
+            <Button asChild size="icon" variant="secondary" className="rounded-full bg-card text-foreground shadow-soft">
               <Link to="settings" aria-label="Réglages">
                 <Settings />
               </Link>
@@ -123,60 +160,197 @@ function MobileGroup({ group, entries, period }: { group: Group; entries: Entry[
         }
       />
 
-      <section className="flex flex-col items-start gap-3 rounded-2xl bg-brand px-5 py-6 text-white shadow-xl shadow-teal-700/25">
-        <Badge className="rounded-md border-0 bg-white/20 font-bold text-white">
-          {group.memberIds.map((id) => `${group.members[id]?.share ?? 0} %`).join(' / ')}
-        </Badge>
-        <h1 className="text-[32px] leading-10 font-bold tracking-tight">{group.name}</h1>
-        <AvatarStack
-          people={group.memberIds.map((id) => ({ id, name: group.members[id]?.name }))}
-          max={4}
-          ring="ring-white/90"
-          className="size-9"
-        />
-      </section>
-
-      <Card className="gap-3.5 border-0 p-5 shadow-soft">
-        <span className="text-muted-foreground">Ton solde total</span>
-        <Money value={mine} currency={group.currency} className="text-[34px] font-bold tracking-tight" />
-        {transfers.length > 0 && <Separator />}
-        {ordered.map((t) => {
-          const other = t.from === me ? t.to : t.from
-          const text =
-            t.to === me ? `${name(t.from)} te doit` : t.from === me ? `Tu dois à ${name(t.to)}` : `${name(t.from)} doit à ${name(t.to)}`
-          return (
-            <div key={`${t.from}-${t.to}`} className="flex items-center justify-between gap-3">
-              <span className="flex items-center gap-2.5">
-                <UserAvatar id={other} name={group.members[other]?.name} className="size-7 text-[10px]" />
-                {text}
-              </span>
-              <strong className={cn(t.to === me && 'text-positive', t.from === me && 'text-negative')}>
-                {formatMoney(t.amount, group.currency)}
-              </strong>
-            </div>
-          )
-        })}
-        {transfers.length > 0 ? (
-          <Button variant="secondary" className="h-12 rounded-full text-base" onClick={settleAll}>
-            <Wallet /> Solder les dettes
-          </Button>
-        ) : (
-          <p className="text-sm text-muted-foreground">Tout le monde est quitte 🎉</p>
-        )}
-      </Card>
-
-      <div className="flex flex-col gap-3">
-        <h2 className="text-2xl font-semibold">Dépenses</h2>
-        <MonthsPicker value={period.months} onChange={period.setMonths} months={available} allowAll className="self-start" />
-        <div className="flex items-center justify-between rounded-xl bg-muted/70 p-4">
-          <span className="flex flex-col">
-            <span className="font-semibold first-letter:uppercase">Total {periodLabel(period.months)}</span>
-            <span className="text-xs text-muted-foreground">
-              {spent.count} dépense{spent.count > 1 ? 's' : ''}
+      <section className="flex flex-col gap-4 rounded-2xl bg-brand p-5 text-white shadow-xl shadow-teal-700/25">
+        <div className="flex items-center gap-3">
+          <h1 className="line-clamp-2 min-w-0 flex-1 text-2xl leading-8 font-bold tracking-tight">{group.name}</h1>
+          <AvatarStack
+            people={group.memberIds.map((id) => ({ id, name: group.members[id]?.name }))}
+            max={4}
+            ring="ring-white/90"
+            className="size-8 text-[11px]"
+          />
+        </div>
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-white/20 bg-white/10 p-4">
+          <span className="flex flex-col gap-1">
+            <span className="flex items-center gap-2 text-[11px] font-bold tracking-wider uppercase opacity-85">
+              Ton solde net
+              {Math.abs(mine) > 0.005 && (
+                <Badge className="rounded-full border-white/40 bg-white/15 text-[10px] tracking-normal text-white normal-case">
+                  {mine > 0 ? 'Créditeur' : 'Débiteur'}
+                </Badge>
+              )}
+            </span>
+            <span className="text-[28px] leading-8 font-bold tracking-tight [&_span]:text-white">
+              <Money value={mine} currency={group.currency} />
             </span>
           </span>
-          <strong className="text-xl">{formatMoney(spent.total, group.currency)}</strong>
+          {owedToMe.length > 0 && (
+            <Button
+              className="rounded-full bg-white text-teal-800 hover:bg-white/90"
+              onClick={() => remind(owedToMe.map((t) => data.name(t.from)).join(', '), mine)}
+            >
+              <Send /> Relancer
+            </Button>
+          )}
+          {iOwe.length > 0 && (
+            <Button
+              className="rounded-full bg-white text-teal-800 hover:bg-white/90"
+              onClick={() =>
+                confirm(`Enregistrer que tu as remboursé ${money(-mine)}?`) &&
+                recordTransfers(iOwe.map((t) => ({ ...t, groupId: group.id })), me)
+              }
+            >
+              <Wallet /> Régler
+            </Button>
+          )}
         </div>
+        <div className="flex flex-wrap justify-between gap-x-3 gap-y-1 text-[13px] opacity-90">
+          <span>
+            Total : <strong>{money(summary.total)}</strong>
+          </span>
+          <span>
+            Avancé : <strong>{money(totals[me]?.paid ?? 0)}</strong>
+          </span>
+          <span>
+            Ta part : <strong>{money(totals[me]?.part ?? 0)}</strong>
+          </span>
+        </div>
+      </section>
+
+      <PendingTransfers group={group} data={data} />
+
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="h-12 w-full rounded-xl">
+          <TabsTrigger value="expenses" className="rounded-lg">
+            <ReceiptText /> Dépenses ({summary.count})
+          </TabsTrigger>
+          <TabsTrigger value="members" className="rounded-lg">
+            <Users /> Membres ({group.memberIds.length})
+          </TabsTrigger>
+          <TabsTrigger value="stats" className="rounded-lg">
+            <ChartPie /> Stats
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {tab === 'expenses' && <ExpensesTab group={group} entries={entries} period={period} data={data} />}
+      {tab === 'members' && <MembersTab group={group} data={data} totals={totals} />}
+      {tab === 'stats' && <StatsTab group={group} period={period} data={data} totals={totals} />}
+    </Page>
+  )
+}
+
+type GroupData = ReturnType<typeof useGroupData>
+
+/** Who still owes whom, folded to one line until opened. Rows that involve you come first. */
+function PendingTransfers({ group, data, defaultOpen = false }: { group: Group; data: GroupData; defaultOpen?: boolean }) {
+  const { me, summary, name } = data
+  const [open, setOpen] = useState(defaultOpen)
+  const money = (n: number) => formatMoney(n, group.currency)
+  const { transfers } = summary
+  if (transfers.length === 0) {
+    return (
+      <Card className="flex-row items-center gap-3 border-0 p-4 shadow-soft">
+        <span className="grid size-10 place-items-center rounded-xl bg-secondary text-primary">
+          <CircleCheck className="size-5" />
+        </span>
+        <span className="font-semibold">Tout le monde est quitte 🎉</span>
+      </Card>
+    )
+  }
+  const ordered = [
+    ...transfers.filter((t) => t.from === me || t.to === me),
+    ...transfers.filter((t) => t.from !== me && t.to !== me),
+  ]
+  const n = transfers.length
+  const record = (t: (typeof transfers)[number], text: string) =>
+    confirm(text) && recordTransfers([{ ...t, groupId: group.id }], me)
+  return (
+    <Card className="gap-3 border-0 p-4 shadow-soft">
+      <button type="button" className="flex items-center gap-3 text-left" onClick={() => setOpen(!open)} aria-expanded={open}>
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-secondary text-primary">
+          <ArrowLeftRight className="size-5" />
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="font-semibold">
+            {n} remboursement{n > 1 ? 's' : ''} en attente
+            {Math.abs(summary.balance) > 0.005 && (
+              <Money value={summary.balance} currency={group.currency} className="ml-1.5 text-sm" />
+            )}
+          </span>
+          {!open && (
+            <span className="truncate text-xs text-muted-foreground">
+              {ordered.map((t) => `${name(t.from === me ? t.to : t.from)} (${money(t.amount)})`).join(' · ')}
+            </span>
+          )}
+        </span>
+        <span className="flex items-center gap-1 rounded-full bg-secondary px-3 py-1.5 text-sm font-semibold text-secondary-foreground">
+          {open ? 'Masquer' : 'Voir'}
+          <ChevronDown className={cn('size-4 transition', open && 'rotate-180')} />
+        </span>
+      </button>
+      {open && (
+        <>
+          {ordered.map((t) => {
+            const toMe = t.to === me
+            const fromMe = t.from === me
+            const other = fromMe ? t.to : t.from
+            return (
+              <div key={`${t.from}-${t.to}`} className="flex items-center gap-3 rounded-xl border bg-muted/40 p-3">
+                <UserAvatar id={other} name={group.members[other]?.name} />
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate font-semibold">
+                    {toMe || fromMe ? name(other) : `${name(t.from)} → ${name(t.to)}`}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {toMe ? 'Doit te rembourser' : fromMe ? 'Tu dois rembourser' : 'Entre eux'}
+                  </span>
+                </span>
+                <strong className={cn('whitespace-nowrap', toMe && 'text-positive', fromMe && 'text-negative')}>
+                  {money(t.amount)}
+                </strong>
+                <span className="flex flex-col gap-1.5">
+                  {toMe && (
+                    <Button size="sm" variant="secondary" className="h-8 rounded-full" onClick={() => remind(name(other), t.amount)}>
+                      <Bell /> Rappel
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 rounded-full"
+                    onClick={() =>
+                      record(
+                        t,
+                        toMe
+                          ? `${name(other)} t'a remboursé ${money(t.amount)}?`
+                          : `Enregistrer ce remboursement de ${money(t.amount)}?`,
+                      )
+                    }
+                  >
+                    <Check /> {toMe ? 'Reçu' : fromMe ? 'Payé' : 'Réglé'}
+                  </Button>
+                </span>
+              </div>
+            )
+          })}
+          <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+            <Sparkles className="size-3.5 text-primary" />
+            Simplification des dettes active · {n} règlement{n > 1 ? 's' : ''} suffi{n > 1 ? 'sent' : 't'}
+          </p>
+        </>
+      )}
+    </Card>
+  )
+}
+
+function ExpensesTab({ group, entries, period, data }: { group: Group; entries: Entry[]; period: Period; data: GroupData }) {
+  const { me, shown, available, name } = data
+  return (
+    <>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold">Dépenses</h2>
+        <MonthsPicker value={period.months} onChange={period.setMonths} months={available} allowAll />
       </div>
       {shown.length === 0 && (
         <p className="py-8 text-center text-muted-foreground">
@@ -201,14 +375,211 @@ function MobileGroup({ group, entries, period }: { group: Group; entries: Entry[
           </ul>
         </section>
       ))}
-      <Fab groupId={group.id} />
-    </Page>
+    </>
+  )
+}
+
+type Totals = ReturnType<typeof memberTotals>
+
+function MembersTab({ group, data, totals, wide }: { group: Group; data: GroupData; totals: Totals; wide?: boolean }) {
+  const { me, summary, name, invite } = data
+  const money = (n: number) => formatMoney(n, group.currency)
+  const ids = [me, ...group.memberIds.filter((id) => id !== me)].filter((id) => group.memberIds.includes(id))
+  return (
+    <>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">Soldes des participants</h2>
+          <p className="text-xs text-muted-foreground">Ce que chacun a payé et ce qui lui revient</p>
+        </div>
+        <Button variant="secondary" className="rounded-full" onClick={invite}>
+          <UserPlus /> Inviter
+        </Button>
+      </div>
+      <div className={cn('grid gap-4', wide && 'xl:grid-cols-2')}>
+      {ids.map((id) => {
+        const b = summary.balances[id] ?? 0
+        const owesMe = summary.transfers.find((t) => t.from === id && t.to === me)
+        const iOweThem = summary.transfers.find((t) => t.from === me && t.to === id)
+        const t = totals[id] ?? { paid: 0, part: 0 }
+        return (
+          <Card key={id} className={cn('gap-4 border-0 p-4 shadow-soft', id === me && 'ring-2 ring-secondary')}>
+            <div className="flex items-center gap-3">
+              <UserAvatar id={id} name={group.members[id]?.name} className="size-12 rounded-xl" />
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="flex flex-wrap items-center gap-1.5 font-semibold">
+                  <span className="truncate">{group.members[id]?.name}</span>
+                  {id === me && <span className="text-primary">(Toi)</span>}
+                  <MemberBadge balance={b} admin={id === group.createdBy} />
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Total payé : {money(t.paid)} · Part réelle : {money(t.part)}
+                </span>
+              </span>
+            </div>
+            <Separator />
+            <div className="flex items-end justify-between gap-3">
+              <span className="flex flex-col">
+                <span className="text-[11px] font-bold tracking-wider text-muted-foreground uppercase">Solde net</span>
+                <Money value={b} currency={group.currency} className="text-xl font-bold" />
+                <span className="text-xs text-muted-foreground">
+                  {owesMe
+                    ? `Doit ${money(owesMe.amount)} à toi`
+                    : iOweThem
+                      ? `Tu lui dois ${money(iOweThem.amount)}`
+                      : Math.abs(b) <= 0.005
+                        ? "À l'équilibre · rien à régler"
+                        : b > 0
+                          ? 'À recevoir'
+                          : 'Doit payer'}
+                </span>
+              </span>
+              {owesMe && (
+                <Button size="sm" variant="outline" className="rounded-full text-negative" onClick={() => remind(name(id), owesMe.amount)}>
+                  <Bell /> Rappel
+                </Button>
+              )}
+              {Math.abs(b) <= 0.005 && (
+                <Badge variant="secondary" className="rounded-full">
+                  <CheckCheck /> À jour
+                </Badge>
+              )}
+            </div>
+          </Card>
+        )
+      })}
+      </div>
+    </>
+  )
+}
+
+function MemberBadge({ balance: b, admin }: { balance: number; admin: boolean }) {
+  return (
+    <>
+      {admin && <Badge className="rounded-full bg-secondary text-[10px] text-secondary-foreground">Organisateur</Badge>}
+      {b < -0.005 && <Badge className="rounded-full bg-orange-100 text-[10px] text-orange-800">Doit rembourser</Badge>}
+      {b > 0.005 && <Badge className="rounded-full bg-emerald-100 text-[10px] text-emerald-800">Créditeur</Badge>}
+      {Math.abs(b) <= 0.005 && <Badge className="rounded-full bg-muted text-[10px] text-muted-foreground">Soldé</Badge>}
+    </>
+  )
+}
+
+function StatsTab({
+  group,
+  period,
+  data,
+  totals,
+  wide,
+}: {
+  group: Group
+  period: Period
+  data: GroupData
+  totals: Totals
+  wide?: boolean
+}) {
+  const { expenses, spent, available, me } = data
+  const money = (n: number) => formatMoney(n, group.currency)
+  const categories = byCategory(expenses)
+  const top = [...expenses].sort((a, b) => b.amount - a.amount)[0]
+  const maxPaid = Math.max(...group.memberIds.map((id) => Math.max(totals[id]?.paid ?? 0, totals[id]?.part ?? 0)), 1)
+  return (
+    <>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold">Statistiques</h2>
+        <MonthsPicker value={period.months} onChange={period.setMonths} months={available} allowAll />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Card className="gap-1 border-0 p-4 shadow-soft">
+          <span className="text-xs font-semibold text-muted-foreground">Moyenne / pers.</span>
+          <strong className="text-xl">{money(spent.total / Math.max(group.memberIds.length, 1))}</strong>
+          <span className="text-xs text-muted-foreground">
+            {spent.count} dépense{spent.count > 1 ? 's' : ''}
+          </span>
+        </Card>
+        <Card className="gap-1 border-0 p-4 shadow-soft">
+          <span className="text-xs font-semibold text-muted-foreground">Top dépense</span>
+          <strong className="text-xl">{top ? money(top.amount) : '—'}</strong>
+          <span className="truncate text-xs text-muted-foreground">
+            {top ? `${top.title} · ${data.name(top.paidBy)}` : 'Rien sur cette période'}
+          </span>
+        </Card>
+      </div>
+
+      <div className={cn('grid items-start gap-4', wide && 'xl:grid-cols-2')}>
+      <Card className="gap-4 border-0 p-4 shadow-soft">
+        <h3 className="flex items-baseline justify-between text-sm font-bold tracking-wider uppercase">
+          Dépenses par catégorie
+          <span className="text-base tracking-normal normal-case">{money(spent.total)}</span>
+        </h3>
+        {categories.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Aucune dépense sur cette période.</p>
+        ) : (
+          <>
+            <div className="flex h-2.5 gap-0.5 overflow-hidden rounded-full">
+              {categories.map((c) => (
+                <span key={c.id} style={{ flex: c.amount, background: categoryOf(c.id).color }} />
+              ))}
+            </div>
+            <ul className="flex flex-col gap-2 text-sm">
+              {categories.map((c) => (
+                <li key={c.id} className="flex items-center gap-2.5">
+                  <span className="size-2.5 rounded-full" style={{ background: categoryOf(c.id).color }} />
+                  <span className="flex-1">{categoryOf(c.id).label}</span>
+                  <strong>{money(c.amount)}</strong>
+                  <span className="w-12 text-right text-xs text-muted-foreground">
+                    {Math.round((c.amount / spent.total) * 100)} %
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </Card>
+
+      <Card className="gap-4 border-0 p-4 shadow-soft">
+        <h3 className="text-sm font-bold tracking-wider uppercase">Contributions vs parts réelles</h3>
+        <p className="-mt-2 text-xs text-muted-foreground">Depuis le début du groupe</p>
+        {group.memberIds.map((id) => {
+          const t = totals[id] ?? { paid: 0, part: 0 }
+          const b = round2(t.paid - t.part)
+          return (
+            <div key={id} className="flex flex-col gap-1.5">
+              <span className="flex items-baseline justify-between gap-2 text-sm">
+                <span className="truncate font-semibold">
+                  {group.members[id]?.name}
+                  {id === me && <span className="text-primary"> (Toi)</span>}
+                </span>
+                <span>
+                  <strong>{money(t.paid)}</strong>
+                  <span className="text-xs text-muted-foreground"> / {money(t.part)}</span>
+                </span>
+              </span>
+              <div className="relative h-2 overflow-hidden rounded-full bg-muted">
+                <span className="absolute inset-y-0 left-0 rounded-full bg-primary/25" style={{ width: `${(t.part / maxPaid) * 100}%` }} />
+                <span className="absolute inset-y-0 left-0 rounded-full bg-primary" style={{ width: `${(t.paid / maxPaid) * 100}%` }} />
+              </div>
+              <span className="flex justify-between text-[11px] text-muted-foreground">
+                <span>Payé / part</span>
+                <span className={cn('font-semibold', b > 0.005 && 'text-positive', b < -0.005 && 'text-negative')}>
+                  {b > 0.005 ? '+ ' : b < -0.005 ? '− ' : ''}
+                  {money(Math.abs(b))}
+                </span>
+              </span>
+            </div>
+          )
+        })}
+      </Card>
+      </div>
+    </>
   )
 }
 
 function DesktopGroup({ group, entries, period }: { group: Group; entries: Entry[]; period: Period }) {
-  const { me, summary, shown: inPeriod, expenses, spent, available, settleAll, invite, name } = useGroupData(group, entries, period)
+  const data = useGroupData(group, entries, period)
+  const { me, summary, shown: inPeriod, available, settleAll, invite } = data
   const openExpense = useOpenExpense()
+  const totals = memberTotals(group, entries)
+  const [view, setView] = useState('expenses')
   const [tab, setTab] = useState('all')
   const [category, setCategory] = useState('all')
   const money = (n: number) => formatMoney(n, group.currency)
@@ -219,7 +590,6 @@ function DesktopGroup({ group, entries, period }: { group: Group; entries: Entry
     if (category !== 'all' && !(e.kind === 'expense' && (e.category ?? 'other') === category)) return false
     return true
   })
-  const categories = byCategory(expenses)
 
   return (
     <Page className="hidden md:flex">
@@ -238,7 +608,7 @@ function DesktopGroup({ group, entries, period }: { group: Group; entries: Entry
 
       <Card className="flex-row flex-wrap items-center gap-6 border-0 bg-gradient-to-r from-card to-secondary/60 p-6 shadow-soft">
         <GroupIcon className="size-16 [&_svg]:size-8" />
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex min-w-0 flex-1 basis-72 flex-col gap-1">
           <span className="flex items-center gap-2">
             <h1 className="truncate text-[32px] font-bold tracking-tight">{group.name}</h1>
             <Button asChild variant="ghost" size="icon" className="rounded-full">
@@ -253,17 +623,22 @@ function DesktopGroup({ group, entries, period }: { group: Group; entries: Entry
           </span>
         </div>
         <div className="flex flex-col gap-3">
-          <div className="flex divide-x rounded-xl bg-muted/80">
+          <div className="grid grid-cols-2 rounded-xl bg-muted/80 xl:flex xl:divide-x [&_strong]:whitespace-nowrap">
             <span className="flex flex-col px-5 py-3">
               <span className="text-[11px] font-bold tracking-wider text-muted-foreground uppercase">Total engagé</span>
-              <strong className="text-xl">{money(spent.total)}</strong>
-              {period.months.length > 0 && (
-                <span className="text-xs text-muted-foreground first-letter:uppercase">{periodLabel(period.months)}</span>
-              )}
+              <strong className="text-xl">{money(summary.total)}</strong>
+            </span>
+            <span className="flex flex-col px-5 py-3">
+              <span className="text-[11px] font-bold tracking-wider text-muted-foreground uppercase">Tu as avancé</span>
+              <strong className="text-xl">{money(totals[me]?.paid ?? 0)}</strong>
+            </span>
+            <span className="flex flex-col px-5 py-3">
+              <span className="text-[11px] font-bold tracking-wider text-muted-foreground uppercase">Ta part</span>
+              <strong className="text-xl">{money(totals[me]?.part ?? 0)}</strong>
             </span>
             <span className="flex flex-col px-5 py-3">
               <span className="text-[11px] font-bold tracking-wider text-muted-foreground uppercase">Ton solde</span>
-              <Money value={summary.balance} currency={group.currency} className="text-xl font-bold" />
+              <Money value={summary.balance} currency={group.currency} className="text-xl font-bold whitespace-nowrap" />
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -289,6 +664,24 @@ function DesktopGroup({ group, entries, period }: { group: Group; entries: Entry
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_400px]">
         <div className="flex min-w-0 flex-col gap-4">
+          <PendingTransfers group={group} data={data} defaultOpen />
+          <Tabs value={view} onValueChange={setView}>
+            <TabsList className="h-12 w-full max-w-md rounded-xl">
+              <TabsTrigger value="expenses" className="rounded-lg">
+                <ReceiptText /> Dépenses ({summary.count})
+              </TabsTrigger>
+              <TabsTrigger value="members" className="rounded-lg">
+                <Users /> Membres ({group.memberIds.length})
+              </TabsTrigger>
+              <TabsTrigger value="stats" className="rounded-lg">
+                <ChartPie /> Stats
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          {view === 'members' && <MembersTab group={group} data={data} totals={totals} wide />}
+          {view === 'stats' && <StatsTab group={group} period={period} data={data} totals={totals} wide />}
+          {view === 'expenses' && (
+            <>
           <Card className="flex-row flex-wrap items-center justify-between gap-3 border-0 p-3 shadow-soft">
             <Tabs value={tab} onValueChange={setTab}>
               <TabsList className="h-11 rounded-full">
@@ -338,6 +731,8 @@ function DesktopGroup({ group, entries, period }: { group: Group; entries: Entry
               ))}
             </section>
           ))}
+            </>
+          )}
         </div>
 
         <div className="flex flex-col gap-5">
@@ -350,7 +745,8 @@ function DesktopGroup({ group, entries, period }: { group: Group; entries: Entry
             </div>
             {group.memberIds.map((id) => {
               const b = summary.balances[id] ?? 0
-              const count = expenses.filter((e) => e.paidBy === id).length
+              const count = data.expenses.filter((e) => e.paidBy === id).length
+              const owesMe = summary.transfers.find((t) => t.from === id && t.to === me)
               return (
                 <div key={id} className={cn('flex items-center gap-3 rounded-xl p-2.5', id === me && 'bg-muted/70')}>
                   <UserAvatar id={id} name={group.members[id]?.name} />
@@ -366,83 +762,25 @@ function DesktopGroup({ group, entries, period }: { group: Group; entries: Entry
                   </span>
                   <span className="flex flex-col items-end">
                     <Money value={b} currency={group.currency} className="font-bold" />
-                    <span className="text-[11px] text-muted-foreground">
-                      {b > 0.005 ? 'à recevoir' : b < -0.005 ? 'doit payer' : 'quitte'}
-                    </span>
+                    {owesMe ? (
+                      <button
+                        type="button"
+                        className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
+                        onClick={() => remind(data.name(id), owesMe.amount)}
+                      >
+                        <Bell className="size-3" /> Rappel
+                      </button>
+                    ) : (
+                      <span className="text-[11px] text-muted-foreground">
+                        {b > 0.005 ? 'à recevoir' : b < -0.005 ? 'doit payer' : 'quitte'}
+                      </span>
+                    )}
                   </span>
                 </div>
               )
             })}
           </Card>
 
-          <Card className="gap-4 border-0 p-5 shadow-soft">
-            <div className="flex items-center justify-between">
-              <h2 className="flex items-center gap-2 text-lg font-semibold">
-                <Sparkles className="size-5 text-primary" /> Règlements optimisés
-              </h2>
-              <Badge variant="secondary" className="rounded-full">
-                {summary.transfers.length} étape{summary.transfers.length > 1 ? 's' : ''}
-              </Badge>
-            </div>
-            <p className="text-sm text-muted-foreground">Le minimum de virements pour que tout le monde soit quitte.</p>
-            {summary.transfers.length === 0 && <p className="text-sm font-semibold text-positive">Tout est réglé 🎉</p>}
-            {summary.transfers.map((t) => (
-              <div key={`${t.from}-${t.to}`} className="flex items-center gap-3 rounded-xl bg-muted/70 p-3">
-                <span className="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
-                  <span className="truncate font-semibold">{name(t.from)}</span>
-                  <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-                  <span className="truncate font-semibold text-primary">{name(t.to)}</span>
-                </span>
-                <strong>{money(t.amount)}</strong>
-                <Button
-                  size="sm"
-                  className="rounded-full"
-                  onClick={() =>
-                    confirm(`Enregistrer ce remboursement de ${money(t.amount)}?`) &&
-                    recordTransfers([{ ...t, groupId: group.id }], me)
-                  }
-                >
-                  Régler
-                </Button>
-              </div>
-            ))}
-          </Card>
-
-          <Card className="gap-4 border-0 p-5 shadow-soft">
-            <h2 className="flex items-baseline justify-between gap-2 text-lg font-semibold">
-              Synthèse
-              <span className="text-xs font-normal text-muted-foreground first-letter:uppercase">{periodLabel(period.months)}</span>
-            </h2>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1 rounded-xl bg-muted/70 p-3.5">
-                <span className="text-[11px] font-bold tracking-wider text-muted-foreground uppercase">Moyenne / pers.</span>
-                <strong className="text-xl">{money(spent.total / Math.max(group.memberIds.length, 1))}</strong>
-              </div>
-              <div className="flex flex-col gap-1 rounded-xl bg-muted/70 p-3.5">
-                <span className="text-[11px] font-bold tracking-wider text-muted-foreground uppercase">Dépenses</span>
-                <strong className="text-xl">{money(spent.total)}</strong>
-                <span className="text-xs text-muted-foreground">{spent.count} transaction{spent.count > 1 ? 's' : ''}</span>
-              </div>
-            </div>
-            {categories.length > 0 && (
-              <>
-                <span className="text-sm text-muted-foreground">Répartition par catégorie</span>
-                <div className="flex h-2.5 gap-0.5 overflow-hidden rounded-full">
-                  {categories.map((c) => (
-                    <span key={c.id} style={{ flex: c.amount, background: categoryOf(c.id).color }} />
-                  ))}
-                </div>
-                <ul className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
-                  {categories.map((c) => (
-                    <li key={c.id} className="flex items-center gap-1.5">
-                      <span className="size-2 rounded-full" style={{ background: categoryOf(c.id).color }} />
-                      {categoryOf(c.id).label} ({Math.round((c.amount / spent.total) * 100)} %)
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-          </Card>
         </div>
       </div>
     </Page>

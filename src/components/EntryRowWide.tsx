@@ -84,12 +84,11 @@ export default function EntryRowWide({ entry: e, group, me }: { entry: Entry; gr
           </span>
         </span>
         <span className="flex flex-col items-end">
-          <strong className="text-lg whitespace-nowrap">{money(e.amount)}</strong>
-          {e.paidBy === me ? (
-            <span className="text-xs font-semibold whitespace-nowrap text-positive">+{money(e.amount - mine)} avancé</span>
-          ) : (
-            <span className="text-xs whitespace-nowrap text-muted-foreground">Ta part : {money(mine)}</span>
-          )}
+          <strong className="text-lg whitespace-nowrap">{money(mine)}</strong>
+          <span className="text-[11px] text-muted-foreground">Ta part</span>
+          <span className={cn('text-xs whitespace-nowrap', e.paidBy === me ? 'font-semibold text-positive' : 'text-muted-foreground')}>
+            {e.paidBy === me ? 'Avancé' : 'Total'} : {money(e.amount)}
+          </span>
         </span>
       </button>
       <DropdownMenu>
